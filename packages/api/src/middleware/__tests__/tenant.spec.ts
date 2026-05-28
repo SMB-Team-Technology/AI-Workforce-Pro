@@ -108,23 +108,23 @@ describe('tenantContextMiddleware', () => {
     });
   });
 
-  it('is a no-op for unauthenticated requests (no user)', async () => {
+  it('propagates SYSTEM_TENANT_ID for unauthenticated requests', async () => {
     const req = mockReq();
     const res = mockRes();
 
     const tenantId = await runMiddleware(req, res);
-    expect(tenantId).toBeUndefined();
+    expect(tenantId).toBe(SYSTEM_TENANT_ID);
   });
 
-  it('passes through without ALS when user has no tenantId in non-strict mode', async () => {
+  it('uses SYSTEM_TENANT_ID when authenticated user has no tenantId', async () => {
     const req = mockReq({ role: 'user' });
     const res = mockRes();
 
     const tenantId = await runMiddleware(req, res);
-    expect(tenantId).toBeUndefined();
+    expect(tenantId).toBe(SYSTEM_TENANT_ID);
   });
 
-  it('keeps user context in non-strict single-tenant mode', async () => {
+  it('uses SYSTEM_TENANT_ID and preserves user/request context for platform-level accounts', async () => {
     const req = mockReqWithHeaders(
       { id: 'single-user', role: 'user' },
       { 'x-request-id': 'req-1' },
@@ -134,27 +134,21 @@ describe('tenantContextMiddleware', () => {
     const context = await runMiddlewareContext(req, res);
 
     expect(context).toEqual({
-      tenantId: undefined,
+      tenantId: SYSTEM_TENANT_ID,
       userId: 'single-user',
       requestId: 'req-1',
     });
   });
 
-  it('returns 403 when user has no tenantId in strict mode', async () => {
+  it('uses SYSTEM_TENANT_ID in strict mode when authenticated user has no tenantId', async () => {
     process.env.TENANT_ISOLATION_STRICT = 'true';
     _resetTenantMiddlewareStrictCache();
 
     const req = mockReq({ role: 'user' });
     const res = mockRes();
-    const next: NextFunction = jest.fn();
 
-    await tenantContextMiddleware(req, res, next);
-
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ error: expect.stringContaining('Tenant context required') }),
-    );
-    expect(next).not.toHaveBeenCalled();
+    const tenantId = await runMiddleware(req, res);
+    expect(tenantId).toBe(SYSTEM_TENANT_ID);
   });
 
   it('allows authenticated requests with tenantId in strict mode', async () => {

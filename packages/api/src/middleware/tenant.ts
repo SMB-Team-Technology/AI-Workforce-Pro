@@ -96,15 +96,13 @@ export function runWithTenantContext(context: TenantContext, next: NextFunction)
  * global `app.use()` scope — `req.user` is undefined at that stage.
  *
  * Behaviour:
- * - Authenticated request with context → wraps downstream in `tenantStorage.run(context)`
- * - Authenticated request **without** `tenantId`:
- *   - Strict mode (`TENANT_ISOLATION_STRICT=true`) → responds 403
- *   - Non-strict (default) → passes through with user/request context only
- * - Unauthenticated request → propagates request context when available
+ * - Authenticated request with `tenantId` → wraps downstream in `tenantStorage.run(context)`
+ * - Authenticated request without `tenantId` (super-admin / single-tenant) → uses `SYSTEM_TENANT_ID`
+ * - Unauthenticated request (defensive) → uses `SYSTEM_TENANT_ID`
  */
 export function tenantContextMiddleware(
   req: ServerRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction,
 ): void {
   if (!_checkedThread) {
@@ -119,23 +117,21 @@ export function tenantContextMiddleware(
 
   const user = req.user;
   const context = buildTenantContext(req);
-
-  if (!user) {
-    runWithTenantContext(context, next);
-    return;
-  }
-
   const { tenantId } = context;
 
-  if (!tenantId) {
-    if (isStrict()) {
-      res.status(403).json({ error: 'Tenant context required in strict isolation mode' });
-      return;
-    }
-    runWithTenantContext(context, next);
+  if (!user || !tenantId) {
+    // No user (unauthenticated, defensive) or platform-level account without tenantId
+    // (super-admin / single-tenant deployment) → run as system so Mongoose isolation
+    // filters are bypassed. Downstream route guards restrict actual access.
+    runWithTenantContext({ ...context, tenantId: SYSTEM_TENANT_ID }, next);
     return;
   }
 
+  logger.info('[tenantContextMiddleware] Tenant context applied', {
+    tenantId,
+    userId: context.userId,
+    requestId: context.requestId,
+  });
   runWithTenantContext(context, next);
 }
 
@@ -265,9 +261,20 @@ export function restoreTenantContextFromReq(
     currentContext?.userId === context.userId &&
     currentContext?.requestId === context.requestId
   ) {
+    logger.info('[restoreTenantContextFromReq] Tenant context already current, skipping re-entry', {
+      tenantId: resolvedTenantId,
+      userId: context.userId,
+      requestId: context.requestId,
+    });
     next();
     return;
   }
 
+  logger.info('[restoreTenantContextFromReq] Tenant context restored', {
+    tenantId: resolvedTenantId,
+    userId: context.userId,
+    requestId: context.requestId,
+    path: req.path,
+  });
   return runWithTenantContext(context, next);
 }
