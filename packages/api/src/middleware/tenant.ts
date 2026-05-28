@@ -1,5 +1,6 @@
 import { unlink } from 'fs/promises';
 import { isMainThread } from 'worker_threads';
+import { SystemRoles } from 'librechat-data-provider';
 import { tenantStorage, logger, SYSTEM_TENANT_ID } from '@librechat/data-schemas';
 import type { TenantContext } from '@librechat/data-schemas';
 import type { Response, NextFunction } from 'express';
@@ -7,6 +8,7 @@ import type { ServerRequest } from '~/types/http';
 
 type ContextUser = {
   tenantId?: string;
+  role?: string;
   id?: string;
   _id?: { toString: () => string };
 } | null;
@@ -97,12 +99,13 @@ export function runWithTenantContext(context: TenantContext, next: NextFunction)
  *
  * Behaviour:
  * - Authenticated request with `tenantId` → wraps downstream in `tenantStorage.run(context)`
- * - Authenticated request without `tenantId` (super-admin / single-tenant) → uses `SYSTEM_TENANT_ID`
+ * - Authenticated admin without `tenantId` → uses `SYSTEM_TENANT_ID`
+ * - Authenticated non-admin without `tenantId` → 403 in strict mode, continues without tenant otherwise
  * - Unauthenticated request (defensive) → uses `SYSTEM_TENANT_ID`
  */
 export function tenantContextMiddleware(
   req: ServerRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ): void {
   if (!_checkedThread) {
@@ -119,12 +122,21 @@ export function tenantContextMiddleware(
   const context = buildTenantContext(req);
   const { tenantId } = context;
 
-  if (!user || !tenantId) {
-    // No user (unauthenticated, defensive) or platform-level account without tenantId
-    // (super-admin / single-tenant deployment) → run as system so Mongoose isolation
-    // filters are bypassed. Downstream route guards restrict actual access.
+  if (!user) {
+    // Defensive: should not reach here when chained after requireJwtAuth.
     runWithTenantContext({ ...context, tenantId: SYSTEM_TENANT_ID }, next);
     return;
+  }
+
+  if (!tenantId) {
+    if (user.role === SystemRoles.ADMIN) {
+      // Platform-level admin has no tenant by design → bypass isolation.
+      runWithTenantContext({ ...context, tenantId: SYSTEM_TENANT_ID }, next);
+      return;
+    } else {
+      res.status(403).json({ error: 'Tenant context required in strict isolation mode' });
+      return;
+    }
   }
 
   logger.info('[tenantContextMiddleware] Tenant context applied', {
@@ -232,6 +244,17 @@ export function restoreTenantContextFromReq(
   const resolvedTenantId = context.tenantId;
 
   if (!resolvedTenantId) {
+    const rawTenantId =
+      (req as RequestTenantSource).tenantId ?? (req as RequestTenantSource).user?.tenantId;
+    if (
+      req.user &&
+      rawTenantId === undefined &&
+      (req.user as ContextUser)?.role === SystemRoles.ADMIN
+    ) {
+      // Authenticated admin with no tenantId whatsoever → SYSTEM_TENANT_ID, bypass strict check.
+      runWithTenantContext({ ...context, tenantId: SYSTEM_TENANT_ID }, next);
+      return;
+    }
     if (isStrict()) {
       return rejectRequestWithUploadCleanupInContext(
         context,
