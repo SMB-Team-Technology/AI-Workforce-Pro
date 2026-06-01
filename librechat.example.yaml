@@ -63,44 +63,46 @@ cache: true
 
 # Custom interface configuration
 interface:
-  customWelcome: 'Welcome to LibreChat! Enjoy your experience.'
+  customWelcome: 'Welcome to AI Workforce Pro!'
   # Enable/disable file search as a chatarea selection (default: true)
   # Note: This setting does not disable the Agents File Search Capability.
   # To disable the Agents Capability, see the Agents Endpoint configuration instead.
   fileSearch: true
   # Privacy policy settings
   privacyPolicy:
-    externalUrl: 'https://librechat.ai/privacy-policy'
+    # Replace with your organization's privacy policy URL before production deployment
+    externalUrl: 'https://example.com/privacy-policy'
     openNewTab: true
 
   # Terms of service
   termsOfService:
-    externalUrl: 'https://librechat.ai/tos'
+    # Replace with your organization's terms of service URL before production deployment
+    externalUrl: 'https://example.com/terms-of-service'
     openNewTab: true
     modalAcceptance: true
-    modalTitle: 'Terms of Service for LibreChat'
+    modalTitle: 'Terms of Service for AI Workforce Pro'
     modalContent: |
-      # Terms and Conditions for LibreChat
+      # Terms and Conditions for AI Workforce Pro
 
       *Effective Date: February 18, 2024*
 
-      Welcome to LibreChat, the informational website for the open-source AI chat platform, available at https://librechat.ai. These Terms of Service ("Terms") govern your use of our website and the services we offer. By accessing or using the Website, you agree to be bound by these Terms and our Privacy Policy, accessible at https://librechat.ai//privacy.
+      Welcome to AI Workforce Pro. These Terms of Service ("Terms") govern your use of this AI workforce platform and the services we offer. By accessing or using the service, you agree to be bound by these Terms and our Privacy Policy.
 
-      ## 1. Ownership
+      ## 1. Access and Use
 
-      Upon purchasing a package from LibreChat, you are granted the right to download and use the code for accessing an admin panel for LibreChat. While you own the downloaded code, you are expressly prohibited from reselling, redistributing, or otherwise transferring the code to third parties without explicit permission from LibreChat.
+      Your organization grants you access to AI Workforce Pro subject to these Terms. You may use the platform only for authorized business purposes and in accordance with your organization's policies.
 
       ## 2. User Data
 
-      We collect personal data, such as your name, email address, and payment information, as described in our Privacy Policy. This information is collected to provide and improve our services, process transactions, and communicate with you.
+      We collect personal data, such as your name, email address, and usage information, as described in our Privacy Policy. This information is collected to provide and improve our services, process transactions, and communicate with you.
 
       ## 3. Non-Personal Data Collection
 
-      The Website uses cookies to enhance user experience, analyze site usage, and facilitate certain functionalities. By using the Website, you consent to the use of cookies in accordance with our Privacy Policy.
+      The service uses cookies to enhance user experience, analyze usage, and facilitate certain functionalities. By using the service, you consent to the use of cookies in accordance with our Privacy Policy.
 
-      ## 4. Use of the Website
+      ## 4. Use of the Service
 
-      You agree to use the Website only for lawful purposes and in a manner that does not infringe the rights of, restrict, or inhibit anyone else's use and enjoyment of the Website. Prohibited behavior includes harassing or causing distress or inconvenience to any person, transmitting obscene or offensive content, or disrupting the normal flow of dialogue within the Website.
+      You agree to use AI Workforce Pro only for lawful purposes and in a manner that does not infringe the rights of, restrict, or inhibit anyone else's use and enjoyment of the service. Prohibited behavior includes harassing or causing distress or inconvenience to any person, transmitting obscene or offensive content, or disrupting the normal flow of dialogue within the service.
 
       ## 5. Governing Law
 
@@ -108,13 +110,13 @@ interface:
 
       ## 6. Changes to the Terms
 
-      We reserve the right to modify these Terms at any time. We will notify users of any changes by email. Your continued use of the Website after such changes have been notified will constitute your consent to such changes.
+      We reserve the right to modify these Terms at any time. We will notify users of any changes by email. Your continued use of the service after such changes have been notified will constitute your consent to such changes.
 
       ## 7. Contact Information
 
-      If you have any questions about these Terms, please contact us at contact@librechat.ai.
+      If you have any questions about these Terms, please contact your organization administrator.
 
-      By using the Website, you acknowledge that you have read these Terms of Service and agree to be bound by them.
+      By using AI Workforce Pro, you acknowledge that you have read these Terms of Service and agree to be bound by them.
 
   modelSelect: true
   parameters: true
