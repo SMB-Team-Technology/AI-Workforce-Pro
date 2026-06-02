@@ -120,17 +120,18 @@ interface:
 
   modelSelect: false
   parameters: false
-  presets: true
+  presets: false
+  forking: false
   prompts:
     use: true
-    create: true
+    create: false
     share: false
     public: false
   bookmarks: true
-  multiConvo: true
+  multiConvo: false
   agents:
-    use: true
-    create: true
+    use: false
+    create: false
     share: false
     public: false
   peoplePicker:
