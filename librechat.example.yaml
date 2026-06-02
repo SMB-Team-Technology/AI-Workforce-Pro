@@ -406,14 +406,16 @@ endpoints:
   #     trace: "enabled"
 
 modelSpecs:
+  prioritize: true
   list:
     - name: claude-sonnet-4-6
       label: AI Assistant
-      description: Default assistant for AI Workforce Pro
+      description: Your AI assistant from SMB Team — ask anything to get started.
       default: true
       preset:
         endpoint: anthropic
         model: claude-sonnet-4-6
+        greeting: How can I help you today?
 
 # Example modelSpecs configuration showing grouping options
 # The 'group' field organizes model specs in the UI selector:
