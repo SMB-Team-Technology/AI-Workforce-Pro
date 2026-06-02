@@ -119,7 +119,7 @@ interface:
       By using AI Workforce Pro, you acknowledge that you have read these Terms of Service and agree to be bound by them.
 
   modelSelect: false
-  parameters: true
+  parameters: false
   presets: true
   prompts:
     use: true
