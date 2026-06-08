@@ -1126,6 +1126,57 @@ describe('Conversation Operations', () => {
     });
   });
 
+  describe('tenant isolation', () => {
+    it('getConvosByCursor does not return conversations from another tenant', async () => {
+      const conversationIdA = uuidv4();
+      const conversationIdB = uuidv4();
+
+      await tenantStorage.run({ tenantId: 'tenant-a' }, async () => {
+        await Conversation.create({
+          conversationId: conversationIdA,
+          user: 'user-iso',
+          title: 'Tenant A',
+          endpoint: EModelEndpoint.openAI,
+        });
+      });
+
+      await tenantStorage.run({ tenantId: 'tenant-b' }, async () => {
+        await Conversation.create({
+          conversationId: conversationIdB,
+          user: 'user-iso',
+          title: 'Tenant B',
+          endpoint: EModelEndpoint.openAI,
+        });
+      });
+
+      const result = await tenantStorage.run({ tenantId: 'tenant-a' }, async () =>
+        getConvosByCursor('user-iso', { limit: 25 }),
+      );
+
+      expect(result?.conversations).toHaveLength(1);
+      expect(result?.conversations[0]?.conversationId).toBe(conversationIdA);
+    });
+
+    it('getConvo returns null for a conversation in another tenant', async () => {
+      const conversationId = uuidv4();
+
+      await tenantStorage.run({ tenantId: 'tenant-b' }, async () => {
+        await Conversation.create({
+          conversationId,
+          user: 'user-iso',
+          title: 'Other tenant',
+          endpoint: EModelEndpoint.openAI,
+        });
+      });
+
+      const convo = await tenantStorage.run({ tenantId: 'tenant-a' }, async () =>
+        getConvo('user-iso', conversationId),
+      );
+
+      expect(convo).toBeNull();
+    });
+  });
+
   describe('tenantId stripping', () => {
     it('saveConvo should not write caller-supplied tenantId to the document', async () => {
       const conversationId = uuidv4();

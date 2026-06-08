@@ -11,13 +11,35 @@ import type {
 import type { FilterQuery } from 'mongoose';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
+import { createInvite, type InviteDeps } from '~/auth/invite';
+import { getCallerTenantId, getTenantScopedUserFilter } from './tenant';
 import { parsePagination } from './pagination';
 
 const MAX_SEARCH_LENGTH = 200;
 
 const USER_LIST_FIELDS = '_id name username email avatar role provider createdAt updatedAt';
 
+interface InviteUserBody {
+  email?: string;
+}
+
+export interface SendInviteEmailFn {
+  (params: {
+    email: string;
+    subject: string;
+    payload: Record<string, unknown>;
+    template: string;
+  }): Promise<unknown>;
+}
+
 export interface AdminUsersDeps {
+  findUser: (filter: { email: string }) => Promise<IUser | null>;
+  createInviteToken: InviteDeps['createToken'];
+  findInviteToken: InviteDeps['findToken'];
+  sendInviteEmail: SendInviteEmailFn;
+  getClientDomain: () => string;
+  getAppTitle: () => string;
+  isEmailConfigured: () => boolean;
   findUsers: (
     searchCriteria: FilterQuery<IUser>,
     fieldsToSelect?: string | string[] | null,
@@ -43,14 +65,28 @@ export interface AdminUsersDeps {
 }
 
 export function createAdminUsersHandlers(deps: AdminUsersDeps) {
-  const { findUsers, countUsers, deleteUserById, deleteConfig, deleteAclEntries } = deps;
+  const {
+    findUser,
+    createInviteToken,
+    findInviteToken,
+    sendInviteEmail,
+    getClientDomain,
+    getAppTitle,
+    isEmailConfigured,
+    findUsers,
+    countUsers,
+    deleteUserById,
+    deleteConfig,
+    deleteAclEntries,
+  } = deps;
 
   async function listUsersHandler(req: ServerRequest, res: Response) {
     try {
+      const filter = getTenantScopedUserFilter(req);
       const { limit, offset } = parsePagination(req.query);
       const [users, total] = await Promise.all([
-        findUsers({}, USER_LIST_FIELDS, { limit, offset, sort: { createdAt: -1 } }),
-        countUsers(),
+        findUsers(filter, USER_LIST_FIELDS, { limit, offset, sort: { createdAt: -1 } }),
+        countUsers(filter),
       ]);
 
       const mapped: AdminUserListItem[] = users.map((u) => ({
@@ -98,11 +134,15 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps) {
       const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`^${escaped}`, 'i');
 
-      const users = await findUsers(
-        { $or: [{ name: regex }, { email: regex }, { username: regex }] },
-        '_id name email username avatar',
-        { limit: searchLimit, sort: { name: 1 } },
-      );
+      const filter: FilterQuery<IUser> = {
+        ...getTenantScopedUserFilter(req),
+        $or: [{ name: regex }, { email: regex }, { username: regex }],
+      };
+
+      const users = await findUsers(filter, '_id name email username avatar', {
+        limit: searchLimit,
+        sort: { name: 1 },
+      });
 
       const results: AdminUserSearchResult[] = users.map((u) => ({
         id: u._id?.toString() ?? '',
@@ -134,9 +174,16 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps) {
         return res.status(403).json({ error: 'Cannot delete your own account' });
       }
 
-      const [targetUser] = await findUsers({ _id: id }, 'role', { limit: 1 });
-      if (targetUser?.role === SystemRoles.ADMIN) {
-        const adminCount = await countUsers({ role: SystemRoles.ADMIN });
+      const tenantFilter = getTenantScopedUserFilter(req);
+      const [targetUser] = await findUsers({ _id: id, ...tenantFilter }, 'role tenantId', {
+        limit: 1,
+      });
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      if (targetUser.role === SystemRoles.ADMIN) {
+        const adminCount = await countUsers({ role: SystemRoles.ADMIN, ...tenantFilter });
         if (adminCount <= 1) {
           return res.status(400).json({ error: 'Cannot delete the last admin user' });
         }
@@ -148,8 +195,8 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      if (targetUser?.role === SystemRoles.ADMIN) {
-        const remaining = await countUsers({ role: SystemRoles.ADMIN });
+      if (targetUser.role === SystemRoles.ADMIN) {
+        const remaining = await countUsers({ role: SystemRoles.ADMIN, ...tenantFilter });
         if (remaining === 0) {
           logger.error(
             `[adminUsers] CRITICAL: last admin deleted via race condition, user: ${id}. ` +
@@ -176,9 +223,66 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps) {
     }
   }
 
+  async function inviteUserHandler(req: ServerRequest, res: Response) {
+    try {
+      const callerTenantId = getCallerTenantId(req);
+      if (!callerTenantId) {
+        return res.status(403).json({ error: 'Only tenant admins can invite users' });
+      }
+
+      const email = (req.body as InviteUserBody).email?.trim().toLowerCase();
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Valid email is required' });
+      }
+
+      const existingUser = await findUser({ email });
+      if (existingUser) {
+        return res.status(409).json({ error: 'A user with that email already exists' });
+      }
+
+      const token = await createInvite(
+        email,
+        { createToken: createInviteToken, findToken: findInviteToken },
+        { tenantId: callerTenantId },
+      );
+      if (typeof token !== 'string') {
+        return res.status(500).json({ error: token.message ?? 'Failed to create invite' });
+      }
+
+      const inviteLink = `${getClientDomain()}/register?token=${token}`;
+      const emailConfigured = isEmailConfigured();
+
+      if (!emailConfigured) {
+        return res.status(200).json({
+          success: true,
+          emailSent: false,
+          inviteLink,
+        });
+      }
+
+      const appName = getAppTitle();
+      await sendInviteEmail({
+        email,
+        subject: `Invite to join ${appName}`,
+        payload: {
+          appName,
+          inviteLink,
+          year: new Date().getFullYear(),
+        },
+        template: 'inviteUser.handlebars',
+      });
+
+      return res.status(200).json({ success: true, emailSent: true });
+    } catch (error) {
+      logger.error('[adminUsers] inviteUser error:', error);
+      return res.status(500).json({ error: 'Failed to send user invite' });
+    }
+  }
+
   return {
     listUsers: listUsersHandler,
     searchUsers: searchUsersHandler,
     deleteUser: deleteUserHandler,
+    inviteUser: inviteUserHandler,
   };
 }
