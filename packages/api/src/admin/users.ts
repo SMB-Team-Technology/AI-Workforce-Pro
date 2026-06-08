@@ -182,6 +182,11 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps) {
         return res.status(404).json({ error: 'User not found' });
       }
 
+      const callerTenantId = getCallerTenantId(req);
+      if (callerTenantId && targetUser.role === SystemRoles.ADMIN) {
+        return res.status(403).json({ error: 'Cannot delete tenant admin users' });
+      }
+
       if (targetUser.role === SystemRoles.ADMIN) {
         const adminCount = await countUsers({ role: SystemRoles.ADMIN, ...tenantFilter });
         if (adminCount <= 1) {

@@ -35,6 +35,6 @@ router.use(requireJwtAuth, requireAdminAccess, superAdminContextMiddleware);
 router.get('/', requireReadUsers, handlers.listUsers);
 router.get('/search', requireReadUsers, handlers.searchUsers);
 router.post('/invite', requireManageUsers, handlers.inviteUser);
-// router.delete('/:id', requireManageUsers, handlers.deleteUser);
+router.delete('/:id', requireManageUsers, handlers.deleteUser);
 
 module.exports = router;

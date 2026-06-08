@@ -599,6 +599,26 @@ describe('createAdminUsersHandlers', () => {
       expect(json).toHaveBeenCalledWith({ message: 'User was deleted successfully.' });
     });
 
+    it('returns 403 when a tenant admin tries to delete another admin', async () => {
+      const targetId = new Types.ObjectId().toString();
+      const deps = createDeps({
+        findUsers: jest
+          .fn()
+          .mockResolvedValue([mockUser({ role: SystemRoles.ADMIN, tenantId: 'tenant-a' })]),
+      });
+      const handlers = createAdminUsersHandlers(deps);
+      const { req, res, status, json } = createReqRes({
+        params: { id: targetId },
+        user: { _id: new Types.ObjectId(), role: 'ADMIN', tenantId: 'tenant-a' },
+      });
+
+      await handlers.deleteUser(req, res);
+
+      expect(status).toHaveBeenCalledWith(403);
+      expect(json).toHaveBeenCalledWith({ error: 'Cannot delete tenant admin users' });
+      expect(deps.deleteUserById).not.toHaveBeenCalled();
+    });
+
     it('does not cascade when target user is outside caller tenant', async () => {
       const deps = createDeps({
         findUsers: jest.fn().mockResolvedValue([]),
