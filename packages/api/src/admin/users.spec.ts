@@ -37,13 +37,14 @@ function createReqRes(
   overrides: {
     params?: Record<string, string>;
     query?: Record<string, string | string[]>;
+    body?: Record<string, unknown>;
     user?: { _id?: Types.ObjectId; id?: string; role?: string; tenantId?: string };
   } = {},
 ) {
   const req = {
     params: overrides.params ?? {},
     query: overrides.query ?? {},
-    body: {},
+    body: overrides.body ?? {},
     user: overrides.user ?? { _id: new Types.ObjectId(), role: 'admin' },
   } as unknown as ServerRequest;
 
@@ -386,8 +387,8 @@ describe('createAdminUsersHandlers', () => {
       const handlers = createAdminUsersHandlers(deps);
       const { req, res, status } = createReqRes({
         user: { _id: new Types.ObjectId(), role: 'ADMIN', tenantId: 'tenant-a' },
+        body: { email: 'user@example.com' },
       });
-      req.body = { email: 'user@example.com' };
 
       await handlers.inviteUser(req, res);
 
@@ -406,8 +407,8 @@ describe('createAdminUsersHandlers', () => {
       const handlers = createAdminUsersHandlers(deps);
       const { req, res, status, json } = createReqRes({
         user: { _id: new Types.ObjectId(), role: 'ADMIN', tenantId: 'tenant-a' },
+        body: { email: 'user@example.com' },
       });
-      req.body = { email: 'user@example.com' };
 
       await handlers.inviteUser(req, res);
 
@@ -425,8 +426,8 @@ describe('createAdminUsersHandlers', () => {
       const handlers = createAdminUsersHandlers(deps);
       const { req, res, status } = createReqRes({
         user: { _id: new Types.ObjectId(), role: 'ADMIN' },
+        body: { email: 'user@example.com' },
       });
-      req.body = { email: 'user@example.com' };
 
       await handlers.inviteUser(req, res);
 
@@ -441,8 +442,8 @@ describe('createAdminUsersHandlers', () => {
       const handlers = createAdminUsersHandlers(deps);
       const { req, res, status } = createReqRes({
         user: { _id: new Types.ObjectId(), role: 'ADMIN', tenantId: 'tenant-a' },
+        body: { email: 'existing@example.com' },
       });
-      req.body = { email: 'existing@example.com' };
 
       await handlers.inviteUser(req, res);
 
@@ -455,8 +456,8 @@ describe('createAdminUsersHandlers', () => {
       const handlers = createAdminUsersHandlers(deps);
       const { req, res, status } = createReqRes({
         user: { _id: new Types.ObjectId(), role: 'ADMIN', tenantId: 'tenant-a' },
+        body: { email: 'not-an-email' },
       });
-      req.body = { email: 'not-an-email' };
 
       await handlers.inviteUser(req, res);
 
