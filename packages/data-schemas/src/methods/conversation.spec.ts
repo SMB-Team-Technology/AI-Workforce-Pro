@@ -1175,6 +1175,52 @@ describe('Conversation Operations', () => {
 
       expect(convo).toBeNull();
     });
+
+    it('getConvosByCursor does not return conversations from another user in the same tenant', async () => {
+      const ownId = uuidv4();
+      const otherId = uuidv4();
+
+      await tenantStorage.run({ tenantId: 'tenant-a' }, async () => {
+        await Conversation.create({
+          conversationId: ownId,
+          user: 'user-a',
+          title: 'Mine',
+          endpoint: EModelEndpoint.openAI,
+        });
+        await Conversation.create({
+          conversationId: otherId,
+          user: 'user-b',
+          title: 'Theirs',
+          endpoint: EModelEndpoint.openAI,
+        });
+      });
+
+      const result = await tenantStorage.run({ tenantId: 'tenant-a' }, async () =>
+        getConvosByCursor('user-a', { limit: 25 }),
+      );
+
+      expect(result?.conversations).toHaveLength(1);
+      expect(result?.conversations[0]?.conversationId).toBe(ownId);
+    });
+
+    it('getConvo returns null for another user conversation in the same tenant', async () => {
+      const conversationId = uuidv4();
+
+      await tenantStorage.run({ tenantId: 'tenant-a' }, async () => {
+        await Conversation.create({
+          conversationId,
+          user: 'user-b',
+          title: 'Other user',
+          endpoint: EModelEndpoint.openAI,
+        });
+      });
+
+      const convo = await tenantStorage.run({ tenantId: 'tenant-a' }, async () =>
+        getConvo('user-a', conversationId),
+      );
+
+      expect(convo).toBeNull();
+    });
   });
 
   describe('tenantId stripping', () => {

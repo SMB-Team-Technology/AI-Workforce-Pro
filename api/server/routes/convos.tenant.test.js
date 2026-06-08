@@ -106,3 +106,29 @@ describe('GET /api/convos tenant isolation', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('GET /api/convos user isolation', () => {
+  it('returns only conversations belonging to the caller user within the same tenant', async () => {
+    const ownConvo = await seedConversation(TENANT_A, USER_A, 'My Chat');
+    await seedConversation(TENANT_A, USER_B, 'Other User Chat');
+
+    mockCurrentUser = { id: USER_A, tenantId: TENANT_A };
+
+    const res = await request(app).get('/api/convos');
+
+    expect(res.status).toBe(200);
+    expect(res.body.conversations).toHaveLength(1);
+    expect(res.body.conversations[0].conversationId).toBe(ownConvo.conversationId);
+    expect(res.body.conversations[0].title).toBe('My Chat');
+  });
+
+  it('returns 404 when requesting another user conversation in the same tenant', async () => {
+    const otherConvo = await seedConversation(TENANT_A, USER_B, 'Other User Only');
+
+    mockCurrentUser = { id: USER_A, tenantId: TENANT_A };
+
+    const res = await request(app).get(`/api/convos/${otherConvo.conversationId}`);
+
+    expect(res.status).toBe(404);
+  });
+});
