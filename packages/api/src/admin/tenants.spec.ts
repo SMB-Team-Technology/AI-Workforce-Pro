@@ -225,7 +225,7 @@ describe('createAdminTenantsHandlers', () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
-  it('inviteTenantAdmin rejects existing users', async () => {
+  it('inviteTenantAdmin rejects existing users in the target tenant', async () => {
     findTenantByObjectId.mockResolvedValue({
       _id: mongoId,
       tenantId: 'tenant-a',
@@ -242,6 +242,7 @@ describe('createAdminTenantsHandlers', () => {
 
     await handlers.inviteTenantAdmin(req as never, res as never);
 
+    expect(findUser).toHaveBeenCalledWith({ email: 'admin@example.com' });
     expect(res.status).toHaveBeenCalledWith(409);
     expect(mockedCreateInvite).not.toHaveBeenCalled();
   });

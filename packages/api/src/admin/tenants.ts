@@ -426,8 +426,9 @@ export function createAdminTenantsHandlers(deps: AdminTenantsDeps) {
         return res.status(404).json({ error: 'Tenant not found' });
       }
 
-      const existingUser = await findUser({ email });
-      if (existingUser) {
+      const existingUser = await runAsSystem(async () => findUser({ email }));
+      const userTenantId = existingUser?.tenantId?.trim();
+      if (existingUser && (!userTenantId || userTenantId === tenant.tenantId)) {
         return res.status(409).json({ error: 'A user with that email already exists' });
       }
 

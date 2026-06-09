@@ -435,14 +435,29 @@ describe('createAdminUsersHandlers', () => {
       expect(mockedCreateInvite).not.toHaveBeenCalled();
     });
 
-    it('rejects existing users', async () => {
-      const deps = createDeps({
-        findUser: jest.fn().mockResolvedValue(mockUser()),
-      });
+    it('rejects existing users in the caller tenant', async () => {
+      const findUser = jest.fn().mockResolvedValue(mockUser({ tenantId: 'tenant-a' }));
+      const deps = createDeps({ findUser });
       const handlers = createAdminUsersHandlers(deps);
       const { req, res, status } = createReqRes({
         user: { _id: new Types.ObjectId(), role: 'ADMIN', tenantId: 'tenant-a' },
         body: { email: 'existing@example.com' },
+      });
+
+      await handlers.inviteUser(req, res);
+
+      expect(findUser).toHaveBeenCalledWith({ email: 'existing@example.com' });
+      expect(status).toHaveBeenCalledWith(409);
+      expect(mockedCreateInvite).not.toHaveBeenCalled();
+    });
+
+    it('rejects legacy users without tenantId', async () => {
+      const findUser = jest.fn().mockResolvedValue(mockUser({ tenantId: undefined }));
+      const deps = createDeps({ findUser });
+      const handlers = createAdminUsersHandlers(deps);
+      const { req, res, status } = createReqRes({
+        user: { _id: new Types.ObjectId(), role: 'ADMIN', tenantId: 'tenant-a' },
+        body: { email: 'legacy@example.com' },
       });
 
       await handlers.inviteUser(req, res);

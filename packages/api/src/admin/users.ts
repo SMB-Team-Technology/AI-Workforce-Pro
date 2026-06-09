@@ -1,6 +1,6 @@
 import { Types } from 'mongoose';
 import { PrincipalType, SystemRoles } from 'librechat-data-provider';
-import { logger, isValidObjectIdString } from '@librechat/data-schemas';
+import { logger, isValidObjectIdString, runAsSystem } from '@librechat/data-schemas';
 import type {
   IUser,
   IConfig,
@@ -23,6 +23,22 @@ interface InviteUserBody {
   email?: string;
 }
 
+async function findExistingUserForTenantInvite(
+  findUser: AdminUsersDeps['findUser'],
+  email: string,
+  targetTenantId: string,
+): Promise<IUser | null> {
+  const existingUser = await runAsSystem(async () => findUser({ email }));
+  if (!existingUser) {
+    return null;
+  }
+  const userTenantId = existingUser.tenantId?.trim();
+  if (!userTenantId || userTenantId === targetTenantId) {
+    return existingUser;
+  }
+  return null;
+}
+
 export interface SendInviteEmailFn {
   (params: {
     email: string;
@@ -33,7 +49,7 @@ export interface SendInviteEmailFn {
 }
 
 export interface AdminUsersDeps {
-  findUser: (filter: { email: string }) => Promise<IUser | null>;
+  findUser: (filter: FilterQuery<IUser>) => Promise<IUser | null>;
   createInviteToken: InviteDeps['createToken'];
   findInviteToken: InviteDeps['findToken'];
   sendInviteEmail: SendInviteEmailFn;
@@ -240,7 +256,7 @@ export function createAdminUsersHandlers(deps: AdminUsersDeps) {
         return res.status(400).json({ error: 'Valid email is required' });
       }
 
-      const existingUser = await findUser({ email });
+      const existingUser = await findExistingUserForTenantInvite(findUser, email, callerTenantId);
       if (existingUser) {
         return res.status(409).json({ error: 'A user with that email already exists' });
       }
