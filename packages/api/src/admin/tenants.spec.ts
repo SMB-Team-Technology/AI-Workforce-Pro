@@ -55,6 +55,7 @@ describe('createAdminTenantsHandlers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     countUsersByTenantId.mockResolvedValue(0);
+    findPendingUserInvites.mockResolvedValue([]);
   });
 
   it('createTenant provisions tenant and seeds grants', async () => {
