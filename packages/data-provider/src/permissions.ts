@@ -93,6 +93,43 @@ export const PERMISSION_TYPE_INTERFACE_FIELDS: Record<PermissionTypes, string> =
 export const INTERFACE_PERMISSION_FIELDS = new Set(Object.values(PERMISSION_TYPE_INTERFACE_FIELDS));
 
 /**
+ * Interface fields that may be overridden via tenant / group / user config profiles.
+ * Unlike other permission fields, these are resolved through the config hierarchy
+ * rather than the role permissions editor.
+ */
+export const SCOPE_OVERRIDE_INTERFACE_FIELDS = new Set(['skills', 'prompts']);
+
+export type InterfacePermissionConfig =
+  | boolean
+  | {
+      use?: boolean;
+      create?: boolean;
+      share?: boolean;
+      public?: boolean;
+      defaultActiveOnShare?: boolean;
+    }
+  | undefined;
+
+/** Mirrors backend `getConfigUse` — extracts the USE bit from an interface permission field. */
+export function getInterfacePermissionUse(config: InterfacePermissionConfig): boolean | undefined {
+  if (config === undefined) {
+    return undefined;
+  }
+  if (typeof config === 'boolean') {
+    return config;
+  }
+  return config.use;
+}
+
+/**
+ * Whether USE is enabled for a scope-override field (`skills`, `prompts`) in the merged
+ * startup interface config. Absent fields defer to role permissions (`true` here).
+ */
+export function isInterfacePermissionUseEnabled(config: InterfacePermissionConfig): boolean {
+  return getInterfacePermissionUse(config) !== false;
+}
+
+/**
  * YAML sub-keys within composite interface permission fields that map to permission bits.
  * When an interface permission field is an object, only these sub-keys are stripped from
  * DB overrides — other sub-keys (like `placeholder`, `trustCheckbox`) are UI-only and pass through.
