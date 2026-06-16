@@ -367,6 +367,8 @@ endpoints:
 
   anthropic:
     titleModel: claude-sonnet-4-6
+    addParams:
+      code_execution: true
 
   # AWS Bedrock Example
   # Note: Bedrock endpoint is configured via environment variables
