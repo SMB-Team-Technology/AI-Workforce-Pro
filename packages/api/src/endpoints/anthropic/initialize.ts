@@ -80,6 +80,15 @@ export async function initializeAnthropic({
   const anthropicConfig = appConfig?.endpoints?.[EModelEndpoint.anthropic];
   const allConfig = appConfig?.endpoints?.all;
 
+  if (anthropicConfig?.addParams && typeof anthropicConfig.addParams === 'object') {
+    clientOptions.addParams = anthropicConfig.addParams as Record<string, unknown>;
+  }
+
+  const addParams = anthropicConfig?.addParams as Record<string, unknown> | undefined;
+  if (addParams?.code_execution === true && clientOptions.modelOptions) {
+    clientOptions.modelOptions.code_execution = true;
+  }
+
   const result = getLLMConfig(credentials, clientOptions);
 
   if (anthropicConfig?.streamRate) {

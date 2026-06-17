@@ -71,9 +71,6 @@ bower_components/
 .floo
 .flooignore
 
-#config file
-librechat.yaml
-librechat.yml
 
 # Environment
 .npmrc
@@ -179,3 +176,4 @@ claude-flow
 hive-mind-prompt-*.txt
 CLAUDE.md
 .gsd
+*.tgz
