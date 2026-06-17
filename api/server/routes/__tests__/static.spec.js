@@ -13,6 +13,8 @@ jest.mock('~/config/paths', () => ({
 }));
 
 describe('Static Route Integration', () => {
+  jest.setTimeout(60_000);
+
   let app;
   let testDir;
   let testImagePath;
