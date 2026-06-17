@@ -4,9 +4,10 @@ import {
   PermissionTypes,
   PERMISSION_TYPE_INTERFACE_FIELDS,
   SCOPE_OVERRIDE_INTERFACE_FIELDS,
-  isInterfacePermissionUseEnabled,
+  SCOPE_OVERRIDE_PERMISSION_BITS,
+  getInterfacePermissionBit,
 } from 'librechat-data-provider';
-import type { TInterfaceConfig } from 'librechat-data-provider';
+import type { InterfacePermissionConfig, TInterfaceConfig } from 'librechat-data-provider';
 import { useGetStartupConfig } from '~/data-provider';
 import useHasAccess from './useHasAccess';
 
@@ -20,11 +21,11 @@ export default function useScopeOverrideFeatureAccess(
   const { data: startupConfig, isLoading } = useGetStartupConfig();
 
   return useMemo(() => {
-    if (!roleAccess) {
-      return false;
-    }
     const field = PERMISSION_TYPE_INTERFACE_FIELDS[permissionType];
     if (!SCOPE_OVERRIDE_INTERFACE_FIELDS.has(field)) {
+      return roleAccess;
+    }
+    if (!SCOPE_OVERRIDE_PERMISSION_BITS.has(permission)) {
       return roleAccess;
     }
     if (isLoading) {
@@ -34,9 +35,14 @@ export default function useScopeOverrideFeatureAccess(
     if (!interfaceConfig) {
       return roleAccess;
     }
-    const value = interfaceConfig[field as keyof TInterfaceConfig];
-    return isInterfacePermissionUseEnabled(
-      value as Parameters<typeof isInterfacePermissionUseEnabled>[0],
-    );
-  }, [roleAccess, permissionType, startupConfig?.interface, isLoading]);
+    const value = interfaceConfig[field as keyof TInterfaceConfig] as InterfacePermissionConfig;
+    const configBit = getInterfacePermissionBit(value, permission);
+    if (configBit === false) {
+      return false;
+    }
+    if (configBit === true) {
+      return true;
+    }
+    return roleAccess;
+  }, [roleAccess, permissionType, permission, startupConfig?.interface, isLoading]);
 }

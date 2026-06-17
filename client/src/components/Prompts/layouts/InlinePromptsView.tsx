@@ -3,7 +3,7 @@ import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { PermissionTypes, Permissions } from 'librechat-data-provider';
 import EmptyPromptPreview from '../display/EmptyPromptPreview';
 import CreatePromptForm from '../forms/CreatePromptForm';
-import { useHasAccess, useScopeOverrideFeatureAccess } from '~/hooks';
+import { useScopeOverrideFeatureAccess } from '~/hooks';
 import PromptForm from '../forms/PromptForm';
 import { useGetStartupConfig } from '~/data-provider';
 
@@ -14,11 +14,10 @@ export default function InlinePromptsView() {
   const { isLoading: startupLoading } = useGetStartupConfig();
 
   const hasAccess = useScopeOverrideFeatureAccess(PermissionTypes.PROMPTS);
-
-  const hasCreateAccess = useHasAccess({
-    permissionType: PermissionTypes.PROMPTS,
-    permission: Permissions.CREATE,
-  });
+  const hasCreateAccess = useScopeOverrideFeatureAccess(
+    PermissionTypes.PROMPTS,
+    Permissions.CREATE,
+  );
 
   const handleCreateSuccess = useCallback(
     (groupId: string) => {
