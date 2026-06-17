@@ -284,12 +284,13 @@ describe('access middleware', () => {
       const result = await checkAccess({
         ...defaultParams,
         req: {
+          ...mockReq,
           config: {
             interfaceConfig: {
               prompts: { use: true, create: true },
             },
           },
-        } as Request,
+        } as unknown as Request,
         permissionType: PermissionTypes.PROMPTS,
         permissions: [Permissions.USE, Permissions.CREATE],
       });
@@ -313,12 +314,13 @@ describe('access middleware', () => {
       const result = await checkAccess({
         ...defaultParams,
         req: {
+          ...mockReq,
           config: {
             interfaceConfig: {
               prompts: { use: true, create: false },
             },
           },
-        } as Request,
+        } as unknown as Request,
         permissionType: PermissionTypes.PROMPTS,
         permissions: [Permissions.USE, Permissions.CREATE],
       });

@@ -25,6 +25,7 @@ COPY packages/data-schemas/package*.json ./packages/data-schemas/
 COPY packages/client/package*.json ./packages/client/
 COPY client/package*.json ./client/
 COPY api/package*.json ./api/
+COPY config/patch-agents.js ./config/patch-agents.js
 
 # Install all dependencies for every build
 FROM base-min AS base
