@@ -7,7 +7,7 @@ import { ForkSettings } from './ForkSettings';
 import ChatDirection from './ChatDirection';
 import ToggleSwitch from '../ToggleSwitch';
 import { useGetStartupConfig } from '~/data-provider';
-import { useLocalize, useScopeOverrideFeatureAccess } from '~/hooks';
+import { useScopeOverrideFeatureAccess } from '~/hooks';
 import store from '~/store';
 
 const defaultInterface = getConfigDefaults().interface;
