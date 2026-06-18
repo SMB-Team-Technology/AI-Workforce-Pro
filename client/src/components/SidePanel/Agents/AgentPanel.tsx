@@ -420,6 +420,9 @@ export default function AgentPanel() {
       if (data.web_search === true) {
         tools.push(Tools.web_search);
       }
+      if (data[Tools.google_drive] === true) {
+        tools.push(Tools.google_drive);
+      }
 
       const { payload: basePayload, provider, model } = composeAgentUpdatePayload(data, agent_id);
 

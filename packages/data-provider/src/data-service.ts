@@ -1273,6 +1273,35 @@ export function getGraphApiToken(params: q.GraphTokenParams): Promise<q.GraphTok
   return request.get(endpoints.graphToken(params.scopes));
 }
 
+// Nango integrations
+export function getIntegrations(): Promise<
+  import('./types/integrations').IntegrationsListResponse
+> {
+  return request.get(endpoints.integrations());
+}
+
+export function getIntegrationStatus(
+  providerKey: string,
+): Promise<import('./types/integrations').IntegrationStatusResponse> {
+  return request.get(endpoints.integrationStatus(providerKey));
+}
+
+export function getIntegrationConnectParams(
+  providerKey: string,
+): Promise<import('./types/integrations').IntegrationConnectParamsResponse> {
+  return request.get(endpoints.integrationConnectParams(providerKey));
+}
+
+export function confirmIntegrationConnection(
+  providerKey: string,
+): Promise<import('./types/integrations').IntegrationConfirmResponse> {
+  return request.post(endpoints.integrationConfirm(providerKey));
+}
+
+export function disconnectIntegration(providerKey: string): Promise<{ success: boolean }> {
+  return request.delete(endpoints.integrationDisconnect(providerKey));
+}
+
 export function getDomainServerBaseUrl(): string {
   return `${endpoints.apiBaseUrl()}/api`;
 }

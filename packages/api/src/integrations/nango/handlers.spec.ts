@@ -1,0 +1,286 @@
+import { Types } from 'mongoose';
+import type { IUser } from '@librechat/data-schemas';
+import type { Response } from 'express';
+import type { ServerRequest } from '~/types/http';
+import type { IntegrationProviderStatus } from '../providers';
+import { createAdminIntegrationHandlers, createIntegrationHandlers } from './handlers';
+
+jest.mock('@librechat/data-schemas', () => ({
+  ...jest.requireActual('@librechat/data-schemas'),
+  logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+
+const mockUser: IUser = {
+  _id: new Types.ObjectId(),
+  name: 'Test User',
+  email: 'test@example.com',
+  username: 'testuser',
+  tenantId: 'tenant-a',
+} as IUser;
+
+const googleDriveStatus: IntegrationProviderStatus = {
+  providerKey: 'google-drive',
+  nangoIntegrationId: 'google-drive',
+  labelKey: 'com_integrations_google_drive',
+  icon: 'drive',
+  enabled: true,
+  status: 'not_connected',
+};
+
+function createReqRes(
+  overrides: {
+    params?: Record<string, string>;
+    user?: IUser;
+  } = {},
+) {
+  const req = {
+    params: overrides.params ?? {},
+    user: overrides.user ?? mockUser,
+  } as unknown as ServerRequest;
+
+  const json = jest.fn();
+  const status = jest.fn().mockReturnValue({ json });
+  const res = { status, json } as unknown as Response;
+
+  return { req, res, status, json };
+}
+
+function createMockNangoService() {
+  return {
+    listUserProviderStatuses: jest.fn().mockResolvedValue([googleDriveStatus]),
+    getProviderStatus: jest.fn().mockResolvedValue(googleDriveStatus),
+    getConnectParams: jest.fn().mockResolvedValue({
+      nangoIntegrationId: 'google-drive',
+      connectionId: mockUser._id?.toString(),
+    }),
+    confirmProviderConnection: jest.fn().mockResolvedValue({
+      providerKey: 'google-drive',
+      status: 'connected',
+      connectionId: mockUser._id?.toString(),
+    }),
+    disconnectProvider: jest.fn().mockResolvedValue(undefined),
+    getProviderAccessToken: jest.fn().mockResolvedValue({
+      accessToken: 'ya29.access-token',
+      expiresAt: '2026-06-18T13:00:00.000Z',
+      tokenType: 'Bearer',
+    }),
+    listTenantConnections: jest.fn().mockResolvedValue([]),
+    syncUserConnectionsFromNango: jest.fn().mockResolvedValue(undefined),
+    upsertNangoConnection: jest.fn(),
+  };
+}
+
+describe('createIntegrationHandlers', () => {
+  it('lists integrations for the authenticated user', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes();
+
+    await handlers.listIntegrations(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({ integrations: [googleDriveStatus] });
+    expect(nangoService.listUserProviderStatuses).toHaveBeenCalledWith(mockUser, {
+      syncFromNango: true,
+    });
+  });
+
+  it('returns 503 when Nango is not configured', async () => {
+    const handlers = createIntegrationHandlers({
+      nangoService: createMockNangoService(),
+      isNangoConfigured: () => false,
+    });
+    const { req, res, status, json } = createReqRes();
+
+    await handlers.listIntegrations(req, res);
+
+    expect(status).toHaveBeenCalledWith(503);
+    expect(json).toHaveBeenCalledWith({ error: 'Integrations are not configured' });
+  });
+
+  it('returns connect params for google-drive', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'google-drive' },
+    });
+
+    await handlers.getConnectParams(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      nangoIntegrationId: 'google-drive',
+      connectionId: mockUser._id?.toString(),
+    });
+    expect(nangoService.getConnectParams).toHaveBeenCalledWith(mockUser, 'google-drive');
+  });
+
+  it('returns 400 for an invalid provider key on connect params', async () => {
+    const handlers = createIntegrationHandlers({
+      nangoService: createMockNangoService(),
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'invalid-provider' },
+    });
+
+    await handlers.getConnectParams(req, res);
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ error: 'Invalid integration provider' });
+  });
+
+  it('confirms a connection for google-drive', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'google-drive' },
+    });
+
+    await handlers.confirmConnection(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      providerKey: 'google-drive',
+      status: 'connected',
+      connectionId: mockUser._id?.toString(),
+    });
+    expect(nangoService.confirmProviderConnection).toHaveBeenCalledWith(mockUser, 'google-drive');
+  });
+
+  it('returns an access token for a connected provider', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'google-drive' },
+    });
+
+    await handlers.getProviderToken(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      token: {
+        accessToken: 'ya29.access-token',
+        expiresAt: '2026-06-18T13:00:00.000Z',
+        tokenType: 'Bearer',
+      },
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'google-drive');
+  });
+});
+
+describe('createAdminIntegrationHandlers', () => {
+  it('lists tenant connections for tenant admins', async () => {
+    const nangoService = createMockNangoService();
+    nangoService.listTenantConnections.mockResolvedValue([
+      {
+        userId: mockUser._id,
+        tenantId: 'tenant-a',
+        providerKey: 'google-drive',
+        nangoIntegrationId: 'google-drive',
+        connectionId: 'conn-1',
+        status: 'connected',
+        connectedAt: new Date('2026-06-17T00:00:00.000Z'),
+        updatedAt: new Date('2026-06-17T00:00:00.000Z'),
+      },
+    ]);
+
+    const handlers = createAdminIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+      findUsers: jest.fn().mockResolvedValue([mockUser]),
+    });
+    const { req, res, status, json } = createReqRes();
+
+    await handlers.listTenantIntegrations(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      connections: [
+        expect.objectContaining({
+          userId: mockUser._id?.toString(),
+          userEmail: 'test@example.com',
+          providerKey: 'google-drive',
+          connectionId: 'conn-1',
+        }),
+      ],
+      total: 1,
+    });
+  });
+
+  it('returns 403 when caller has no tenantId', async () => {
+    const handlers = createAdminIntegrationHandlers({
+      nangoService: createMockNangoService(),
+      isNangoConfigured: () => true,
+      findUsers: jest.fn(),
+    });
+    const { req, res, status, json } = createReqRes({
+      user: { ...mockUser, tenantId: undefined } as IUser,
+    });
+
+    await handlers.listTenantIntegrations(req, res);
+
+    expect(status).toHaveBeenCalledWith(403);
+    expect(json).toHaveBeenCalledWith({ error: 'Only tenant admins can list tenant integrations' });
+  });
+
+  it('lists integrations for a scoped user', async () => {
+    const nangoService = createMockNangoService();
+    const userId = mockUser._id?.toString() ?? '';
+    const findUsers = jest.fn().mockResolvedValue([mockUser]);
+    const handlers = createAdminIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+      findUsers,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { userId },
+    });
+
+    await handlers.listUserIntegrations(req, res);
+
+    expect(findUsers).toHaveBeenCalledWith(
+      { _id: userId, tenantId: 'tenant-a' },
+      'name email tenantId',
+      { limit: 1 },
+    );
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      userId,
+      userName: 'Test User',
+      userEmail: 'test@example.com',
+      integrations: [googleDriveStatus],
+    });
+    expect(nangoService.listUserProviderStatuses).toHaveBeenCalledWith(mockUser, {
+      syncFromNango: true,
+    });
+  });
+
+  it('returns 404 when the user is outside the caller tenant scope', async () => {
+    const handlers = createAdminIntegrationHandlers({
+      nangoService: createMockNangoService(),
+      isNangoConfigured: () => true,
+      findUsers: jest.fn().mockResolvedValue([]),
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { userId: mockUser._id?.toString() ?? '' },
+    });
+
+    await handlers.listUserIntegrations(req, res);
+
+    expect(status).toHaveBeenCalledWith(404);
+    expect(json).toHaveBeenCalledWith({ error: 'User not found' });
+  });
+});

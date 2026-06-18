@@ -11,6 +11,7 @@ jest.mock('~/hooks', () => ({
   useGetAgentsConfig: jest.fn(),
   useFileHandlingNoChatContext: jest.fn(),
   useLocalize: jest.fn(),
+  useNangoConnect: jest.fn(),
 }));
 
 jest.mock('~/hooks/Files/useSharePointFileHandling', () => ({
@@ -21,10 +22,16 @@ jest.mock('~/hooks/Files/useSharePointFileHandling', () => ({
 
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: jest.fn(),
+  useIntegrationsQuery: jest.fn(),
 }));
 
 jest.mock('~/components/SharePoint', () => ({
   SharePointPickerDialog: () => null,
+}));
+
+jest.mock('~/components/Integrations', () => ({
+  ConnectProviderPrompt: () => null,
+  INTEGRATION_ATTACH_MENU: [],
 }));
 
 jest.mock('@librechat/client', () => {
@@ -90,6 +97,8 @@ const mockUseSharePointFileHandlingNoChatContext = jest.requireMock(
   '~/hooks/Files/useSharePointFileHandling',
 ).useSharePointFileHandlingNoChatContext;
 const mockUseGetStartupConfig = jest.requireMock('~/data-provider').useGetStartupConfig;
+const mockUseIntegrationsQuery = jest.requireMock('~/data-provider').useIntegrationsQuery;
+const mockUseNangoConnect = jest.requireMock('~/hooks').useNangoConnect;
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
@@ -120,6 +129,13 @@ function setupMocks(overrides: { provider?: string } = {}) {
   mockUseSharePointFileHandling.mockReturnValue(sharePointReturnValue);
   mockUseSharePointFileHandlingNoChatContext.mockReturnValue(sharePointReturnValue);
   mockUseGetStartupConfig.mockReturnValue({ data: { sharePointFilePickerEnabled: false } });
+  mockUseIntegrationsQuery.mockReturnValue({ data: { integrations: [] } });
+  mockUseNangoConnect.mockReturnValue({
+    ensureConnected: jest.fn().mockResolvedValue(false),
+    isConnected: false,
+    isConnecting: false,
+    connect: jest.fn(),
+  });
   mockUseAgentToolPermissions.mockReturnValue({
     fileSearchAllowedByAgent: false,
     codeAllowedByAgent: false,

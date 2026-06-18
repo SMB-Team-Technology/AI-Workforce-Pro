@@ -350,6 +350,22 @@ export const fileSearchSchema: ExtendedJsonSchema = {
   required: ['query'],
 };
 
+/** Google Drive tool JSON schema */
+export const googleDriveSchema: ExtendedJsonSchema = {
+  type: 'object',
+  properties: {
+    query: {
+      type: 'string',
+      description:
+        'Optional search query to find files in the connected Google Drive account. Leave empty to list recently modified files.',
+    },
+    page_size: {
+      type: 'number',
+      description: 'Maximum number of files to return (1-20). Defaults to 10.',
+    },
+  },
+};
+
 /** Tool definitions registry - maps tool names to their definitions */
 export const toolDefinitions: Record<string, ToolRegistryDefinition> = {
   google: {
@@ -423,6 +439,13 @@ export const toolDefinitions: Record<string, ToolRegistryDefinition> = {
     schema: fileSearchSchema,
     toolType: 'builtin',
     responseFormat: 'content_and_artifact',
+  },
+  google_drive: {
+    name: 'google_drive',
+    description:
+      'Search and list files in the connected user Google Drive account. Returns file names, IDs, MIME types, modification times, and web links.',
+    schema: googleDriveSchema,
+    toolType: 'builtin',
   },
   image_gen_oai: {
     name: oaiToolkit.image_gen_oai.name,

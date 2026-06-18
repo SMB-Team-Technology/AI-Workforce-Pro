@@ -1,0 +1,427 @@
+import { isValidObjectIdString, logger } from '@librechat/data-schemas';
+import type { IUser } from '@librechat/data-schemas';
+import type { Response } from 'express';
+import type { ServerRequest } from '~/types/http';
+import { getTenantScopedUserFilter } from '../../admin/tenant';
+import { getIntegrationProvider, isIntegrationProviderKey } from '../providers';
+import { INTEGRATION_CONFIRM_NOT_FOUND } from './errors';
+import type { NangoService } from './service';
+
+function getRequestUser(req: ServerRequest): IUser | undefined {
+  return req.user;
+}
+
+function getUserId(req: ServerRequest): string | undefined {
+  const user = getRequestUser(req);
+  if (!user) {
+    return undefined;
+  }
+  return user._id?.toString() ?? user.id;
+}
+
+export interface IntegrationHandlersDeps {
+  nangoService: NangoService;
+  isNangoConfigured: () => boolean;
+}
+
+export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
+  const { nangoService, isNangoConfigured } = deps;
+
+  async function listIntegrationsHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const integrations = await nangoService.listUserProviderStatuses(user, {
+        syncFromNango: true,
+      });
+      return res.status(200).json({ integrations });
+    } catch (error) {
+      logger.error('[integrations] listIntegrations error:', error);
+      return res.status(500).json({ error: 'Failed to list integrations' });
+    }
+  }
+
+  async function getProviderStatusHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const status = await nangoService.getProviderStatus(user, providerKey, {
+        syncFromNango: true,
+      });
+      if (!status) {
+        return res.status(404).json({ error: 'Integration provider not found' });
+      }
+
+      return res.status(200).json({ integration: status });
+    } catch (error) {
+      logger.error('[integrations] getProviderStatus error:', error);
+      return res.status(500).json({ error: 'Failed to get integration status' });
+    }
+  }
+
+  async function getConnectParamsHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      const provider = getIntegrationProvider(providerKey);
+      if (!provider?.enabled) {
+        return res.status(404).json({ error: 'Integration provider is not available' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const params = await nangoService.getConnectParams(user, providerKey);
+      return res.status(200).json(params);
+    } catch (error) {
+      logger.error('[integrations] getConnectParams error:', error);
+      return res.status(500).json({ error: 'Failed to get integration connect params' });
+    }
+  }
+
+  async function confirmConnectionHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      const provider = getIntegrationProvider(providerKey);
+      if (!provider?.enabled) {
+        return res.status(404).json({ error: 'Integration provider is not available' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const result = await nangoService.confirmProviderConnection(user, providerKey);
+      return res.status(200).json(result);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to confirm integration connection';
+      logger.error('[integrations] confirmConnection error:', error);
+      if (message === INTEGRATION_CONFIRM_NOT_FOUND) {
+        return res.status(404).json({ error: message });
+      }
+      return res.status(500).json({ error: 'Failed to confirm integration connection' });
+    }
+  }
+
+  async function getProviderTokenHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      const provider = getIntegrationProvider(providerKey);
+      if (!provider?.enabled) {
+        return res.status(404).json({ error: 'Integration provider is not available' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const token = await nangoService.getProviderAccessToken(user, providerKey);
+      return res.status(200).json({ token });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to get integration token';
+      if (message === 'Integration is not connected') {
+        return res.status(404).json({ error: message });
+      }
+      if (message === 'Integration provider is not available') {
+        return res.status(404).json({ error: message });
+      }
+      logger.error('[integrations] getProviderToken error:', error);
+      return res.status(500).json({ error: 'Failed to get integration token' });
+    }
+  }
+
+  async function disconnectProviderHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      await nangoService.disconnectProvider(user, providerKey);
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      logger.error('[integrations] disconnectProvider error:', error);
+      return res.status(500).json({ error: 'Failed to disconnect integration' });
+    }
+  }
+
+  return {
+    listIntegrations: listIntegrationsHandler,
+    getProviderStatus: getProviderStatusHandler,
+    getConnectParams: getConnectParamsHandler,
+    confirmConnection: confirmConnectionHandler,
+    getProviderToken: getProviderTokenHandler,
+    disconnectProvider: disconnectProviderHandler,
+    getUserId,
+  };
+}
+
+export interface AdminIntegrationHandlersDeps {
+  nangoService: NangoService;
+  isNangoConfigured: () => boolean;
+  findUsers: (
+    filter: Record<string, unknown>,
+    fields?: string | string[] | null,
+    options?: { limit?: number },
+  ) => Promise<IUser[]>;
+}
+
+export function createAdminIntegrationHandlers(deps: AdminIntegrationHandlersDeps) {
+  const { nangoService, isNangoConfigured, findUsers } = deps;
+
+  async function listTenantIntegrationsHandler(req: ServerRequest, res: Response) {
+    try {
+      const callerTenantId = (req.user as IUser | undefined)?.tenantId?.trim();
+      if (!callerTenantId) {
+        return res.status(403).json({ error: 'Only tenant admins can list tenant integrations' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const connections = await nangoService.listTenantConnections(callerTenantId);
+      const userIds = [...new Set(connections.map((row) => row.userId.toString()))];
+      const users =
+        userIds.length > 0
+          ? await findUsers({ _id: { $in: userIds } }, 'name email username tenantId', {
+              limit: userIds.length,
+            })
+          : [];
+
+      const usersById = new Map(users.map((user) => [user._id?.toString() ?? '', user]));
+
+      const rows = connections.map((connection) => {
+        const user = usersById.get(connection.userId.toString());
+        return {
+          userId: connection.userId.toString(),
+          userName: user?.name ?? '',
+          userEmail: user?.email ?? '',
+          providerKey: connection.providerKey,
+          nangoIntegrationId: connection.nangoIntegrationId,
+          connectionId: connection.connectionId,
+          status: connection.status,
+          connectedAt: connection.connectedAt?.toISOString(),
+          updatedAt: connection.updatedAt?.toISOString(),
+        };
+      });
+
+      return res.status(200).json({ connections: rows, total: rows.length });
+    } catch (error) {
+      logger.error('[admin/integrations] listTenantIntegrations error:', error);
+      return res.status(500).json({ error: 'Failed to list tenant integrations' });
+    }
+  }
+
+  async function listUserIntegrationsHandler(req: ServerRequest, res: Response) {
+    try {
+      const { userId } = req.params as { userId: string };
+      if (!isValidObjectIdString(userId)) {
+        return res.status(400).json({ error: 'Invalid user ID format' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const tenantFilter = getTenantScopedUserFilter(req);
+      const [targetUser] = await findUsers(
+        { _id: userId, ...tenantFilter },
+        'name email tenantId',
+        {
+          limit: 1,
+        },
+      );
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const integrations = await nangoService.listUserProviderStatuses(targetUser, {
+        syncFromNango: true,
+      });
+
+      return res.status(200).json({
+        userId,
+        userName: targetUser.name ?? '',
+        userEmail: targetUser.email ?? '',
+        integrations,
+      });
+    } catch (error) {
+      logger.error('[admin/integrations] listUserIntegrations error:', error);
+      return res.status(500).json({ error: 'Failed to list user integrations' });
+    }
+  }
+
+  async function listMyIntegrationsHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const integrations = await nangoService.listUserProviderStatuses(user, {
+        syncFromNango: true,
+      });
+      return res.status(200).json({ integrations });
+    } catch (error) {
+      logger.error('[admin/integrations] listMyIntegrations error:', error);
+      return res.status(500).json({ error: 'Failed to list integrations' });
+    }
+  }
+
+  async function getConnectParamsHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      const provider = getIntegrationProvider(providerKey);
+      if (!provider?.enabled) {
+        return res.status(404).json({ error: 'Integration provider is not available' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const params = await nangoService.getConnectParams(user, providerKey);
+      return res.status(200).json(params);
+    } catch (error) {
+      logger.error('[admin/integrations] getConnectParams error:', error);
+      return res.status(500).json({ error: 'Failed to get integration connect params' });
+    }
+  }
+
+  async function confirmConnectionHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      const provider = getIntegrationProvider(providerKey);
+      if (!provider?.enabled) {
+        return res.status(404).json({ error: 'Integration provider is not available' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const result = await nangoService.confirmProviderConnection(user, providerKey);
+      return res.status(200).json(result);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to confirm integration connection';
+      logger.error('[admin/integrations] confirmConnection error:', error);
+      if (message === INTEGRATION_CONFIRM_NOT_FOUND) {
+        return res.status(404).json({ error: message });
+      }
+      return res.status(500).json({ error: 'Failed to confirm integration connection' });
+    }
+  }
+
+  async function disconnectProviderHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      await nangoService.disconnectProvider(user, providerKey);
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      logger.error('[admin/integrations] disconnectProvider error:', error);
+      return res.status(500).json({ error: 'Failed to disconnect integration' });
+    }
+  }
+
+  return {
+    listTenantIntegrations: listTenantIntegrationsHandler,
+    listUserIntegrations: listUserIntegrationsHandler,
+    listMyIntegrations: listMyIntegrationsHandler,
+    getConnectParams: getConnectParamsHandler,
+    confirmConnection: confirmConnectionHandler,
+    disconnectProvider: disconnectProviderHandler,
+  };
+}

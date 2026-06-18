@@ -492,3 +492,18 @@ export const getAllEffectivePermissions = (resourceType: ResourceType) =>
 // SharePoint Graph API Token
 export const graphToken = (scopes: string) =>
   `${BASE_URL}/api/auth/graph-token?scopes=${encodeURIComponent(scopes)}`;
+
+const integrationsRoot = `${BASE_URL}/api/integrations`;
+
+export const integrations = () => `${integrationsRoot}/`;
+
+export const integrationStatus = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/status`;
+
+export const integrationConnectParams = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/connect-params`;
+
+export const integrationConfirm = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/confirm`;
+
+export const integrationDisconnect = (providerKey: string) => `${integrationsRoot}/${providerKey}`;

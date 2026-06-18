@@ -24,7 +24,11 @@ import {
   bedrockDocumentExtensions,
   isDocumentSupportedProvider,
 } from 'librechat-data-provider';
-import type { EndpointFileConfig, TConversation } from 'librechat-data-provider';
+import type {
+  EndpointFileConfig,
+  IntegrationProviderKey,
+  TConversation,
+} from 'librechat-data-provider';
 import type { ExtendedFile, FileSetter } from '~/common';
 import {
   useAgentToolPermissions,
@@ -35,7 +39,9 @@ import {
 } from '~/hooks';
 import { useSharePointFileHandlingNoChatContext } from '~/hooks/Files/useSharePointFileHandling';
 import { SharePointPickerDialog } from '~/components/SharePoint';
-import { useGetStartupConfig } from '~/data-provider';
+import { ConnectProviderPrompt, INTEGRATION_ATTACH_MENU } from '~/components/Integrations';
+import { useGetStartupConfig, useIntegrationsQuery } from '~/data-provider';
+import { useNangoConnect } from '~/hooks';
 import { ephemeralAgentByConvoId } from '~/store';
 import { MenuItemProps } from '~/common';
 import { cn } from '~/utils';
@@ -97,8 +103,42 @@ const AttachFileMenu = ({
   const { agentsConfig } = useGetAgentsConfig();
   const { data: startupConfig } = useGetStartupConfig();
   const sharePointEnabled = startupConfig?.sharePointFilePickerEnabled;
+  const integrationsEnabled = startupConfig?.integrationsEnabled === true;
 
   const [isSharePointDialogOpen, setIsSharePointDialogOpen] = useState(false);
+  const [connectPromptProvider, setConnectPromptProvider] = useState<IntegrationProviderKey | null>(
+    null,
+  );
+
+  const googleDriveConnect = useNangoConnect({
+    providerKey: 'google-drive',
+    enabled: integrationsEnabled,
+  });
+  const googleMailConnect = useNangoConnect({
+    providerKey: 'google-mail',
+    enabled: integrationsEnabled,
+  });
+  const googleCalendarConnect = useNangoConnect({
+    providerKey: 'google-calendar',
+    enabled: integrationsEnabled,
+  });
+
+  const integrationConnectors = useMemo(
+    () => ({
+      'google-drive': googleDriveConnect,
+      'google-mail': googleMailConnect,
+      'google-calendar': googleCalendarConnect,
+    }),
+    [googleDriveConnect, googleMailConnect, googleCalendarConnect],
+  );
+
+  const connectPromptConnector = connectPromptProvider
+    ? integrationConnectors[connectPromptProvider]
+    : null;
+
+  const { data: integrationsList } = useIntegrationsQuery({
+    enabled: integrationsEnabled,
+  });
 
   /** TODO: Ephemeral Agent Capabilities
    * Allow defining agent capabilities on a per-endpoint basis
@@ -240,6 +280,34 @@ const AttachFileMenu = ({
 
     const localItems = createMenuItems(handleUploadClick);
 
+    if (integrationsEnabled) {
+      for (const integration of integrationsList?.integrations ?? []) {
+        if (!integration.enabled) {
+          continue;
+        }
+
+        const menuConfig = INTEGRATION_ATTACH_MENU[integration.providerKey];
+        if (!menuConfig) {
+          continue;
+        }
+
+        const isConnected = integration.status === 'connected';
+        const providerKey = integration.providerKey;
+        const { menuLabelKey, Icon } = menuConfig;
+
+        localItems.push({
+          label: localize(menuLabelKey as Parameters<typeof localize>[0]),
+          onClick: () => {
+            if (isConnected) {
+              return;
+            }
+            setConnectPromptProvider(providerKey);
+          },
+          icon: <Icon className="icon-md" />,
+        });
+      }
+    }
+
     if (sharePointEnabled) {
       const sharePointItems = createMenuItems(() => {
         setIsSharePointDialogOpen(true);
@@ -265,6 +333,8 @@ const AttachFileMenu = ({
     handleUploadClick,
     setEphemeralAgent,
     sharePointEnabled,
+    integrationsEnabled,
+    integrationsList?.integrations,
     codeAllowedByAgent,
     fileSearchAllowedByAgent,
     setIsSharePointDialogOpen,
@@ -292,6 +362,17 @@ const AttachFileMenu = ({
       disabled={isUploadDisabled}
     />
   );
+  const handleIntegrationConnect = async () => {
+    if (!connectPromptConnector) {
+      return;
+    }
+
+    const connected = await connectPromptConnector.connect();
+    if (connected) {
+      setConnectPromptProvider(null);
+    }
+  };
+
   const handleSharePointFilesSelected = async (sharePointFiles: any[]) => {
     try {
       await handleSharePointFiles(sharePointFiles);
@@ -329,6 +410,18 @@ const AttachFileMenu = ({
         isDownloading={isProcessing}
         downloadProgress={downloadProgress}
         maxSelectionCount={endpointFileConfig?.fileLimit}
+      />
+      <ConnectProviderPrompt
+        isOpen={connectPromptProvider != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConnectPromptProvider(null);
+          }
+        }}
+        labelKey={connectPromptConnector?.labelKey ?? 'com_integrations_google_drive'}
+        status={connectPromptConnector?.status}
+        isConnecting={connectPromptConnector?.isConnecting}
+        onConnect={handleIntegrationConnect}
       />
     </>
   );
