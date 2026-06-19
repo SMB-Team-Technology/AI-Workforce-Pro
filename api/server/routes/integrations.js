@@ -27,6 +27,12 @@ const handlers = createIntegrationHandlers({
 router.use(requireJwtAuth);
 
 router.get('/', handlers.listIntegrations);
+router.get('/:providerKey/files', handlers.searchProviderFiles);
+router.post('/:providerKey/files/download', handlers.downloadProviderFiles);
+router.get('/:providerKey/messages', handlers.searchProviderMessages);
+router.post('/:providerKey/messages/attach', handlers.attachProviderMessages);
+router.get('/:providerKey/events', handlers.listProviderEvents);
+router.post('/:providerKey/events/attach', handlers.attachProviderEvents);
 router.get('/:providerKey/status', handlers.getProviderStatus);
 router.get('/:providerKey/token', handlers.getProviderToken);
 router.get('/:providerKey/connect-params', handlers.getConnectParams);

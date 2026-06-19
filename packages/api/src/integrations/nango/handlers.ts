@@ -3,7 +3,23 @@ import type { IUser } from '@librechat/data-schemas';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
 import { getTenantScopedUserFilter } from '../../admin/tenant';
+import {
+  formatGoogleCalendarEventAsText,
+  getGoogleCalendarEvent,
+  listGoogleCalendarEvents,
+} from '../googleCalendar/calendarApi';
+import {
+  buildGoogleDriveFullTextQuery,
+  downloadGoogleDriveFile,
+  searchGoogleDriveFiles,
+} from '../googleDrive/driveApi';
+import { getGmailMessageAsText, searchGmailMessages } from '../googleMail/mailApi';
 import { getIntegrationProvider, isIntegrationProviderKey } from '../providers';
+import type {
+  IntegrationEventsAttachRequest,
+  IntegrationFileDownloadRequest,
+  IntegrationMessagesAttachRequest,
+} from '../types';
 import { INTEGRATION_CONFIRM_NOT_FOUND } from './errors';
 import type { NangoService } from './service';
 
@@ -201,6 +217,264 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
     }
   }
 
+  async function searchProviderFilesHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (providerKey !== 'google-drive') {
+        return res.status(400).json({ error: 'File search is not supported for this provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+      const pageToken = typeof req.query.pageToken === 'string' ? req.query.pageToken : undefined;
+      const pageSizeRaw = typeof req.query.pageSize === 'string' ? Number(req.query.pageSize) : 20;
+      const pageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 20;
+
+      const token = await nangoService.getProviderAccessToken(user, providerKey);
+      const driveQuery = query?.trim() ? buildGoogleDriveFullTextQuery(query) : undefined;
+      const result = await searchGoogleDriveFiles(token.accessToken, {
+        query: driveQuery,
+        pageSize,
+        pageToken,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to search files';
+      if (message === 'Integration is not connected') {
+        return res.status(404).json({ error: message });
+      }
+      logger.error('[integrations] searchProviderFiles error:', error);
+      return res.status(500).json({ error: 'Failed to search files' });
+    }
+  }
+
+  async function downloadProviderFilesHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (providerKey !== 'google-drive') {
+        return res.status(400).json({ error: 'File download is not supported for this provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const body = req.body as IntegrationFileDownloadRequest;
+      if (!Array.isArray(body?.files) || body.files.length === 0) {
+        return res.status(400).json({ error: 'At least one file is required' });
+      }
+
+      const token = await nangoService.getProviderAccessToken(user, providerKey);
+      const files = await Promise.all(
+        body.files.map(async (file) => {
+          const downloaded = await downloadGoogleDriveFile(token.accessToken, file);
+          return {
+            fileName: downloaded.fileName,
+            mimeType: downloaded.mimeType,
+            contentBase64: Buffer.from(downloaded.buffer).toString('base64'),
+          };
+        }),
+      );
+
+      return res.status(200).json({ files });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to download files';
+      if (message === 'Integration is not connected') {
+        return res.status(404).json({ error: message });
+      }
+      logger.error('[integrations] downloadProviderFiles error:', error);
+      return res.status(500).json({ error: 'Failed to download files' });
+    }
+  }
+
+  async function searchProviderMessagesHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (providerKey !== 'google-mail') {
+        return res.status(400).json({ error: 'Message search is not supported for this provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+      const pageToken = typeof req.query.pageToken === 'string' ? req.query.pageToken : undefined;
+      const pageSizeRaw = typeof req.query.pageSize === 'string' ? Number(req.query.pageSize) : 10;
+      const pageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
+
+      const token = await nangoService.getProviderAccessToken(user, providerKey);
+      const result = await searchGmailMessages(token.accessToken, {
+        query,
+        pageSize,
+        pageToken,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to search messages';
+      if (message === 'Integration is not connected') {
+        return res.status(404).json({ error: message });
+      }
+      logger.error('[integrations] searchProviderMessages error:', error);
+      return res.status(500).json({ error: 'Failed to search messages' });
+    }
+  }
+
+  async function attachProviderMessagesHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (providerKey !== 'google-mail') {
+        return res.status(400).json({ error: 'Message attach is not supported for this provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const body = req.body as IntegrationMessagesAttachRequest;
+      if (!Array.isArray(body?.messageIds) || body.messageIds.length === 0) {
+        return res.status(400).json({ error: 'At least one message ID is required' });
+      }
+
+      const token = await nangoService.getProviderAccessToken(user, providerKey);
+      const files = await Promise.all(
+        body.messageIds.map(async (messageId) => {
+          const message = await getGmailMessageAsText(token.accessToken, messageId);
+          return {
+            fileName: message.fileName,
+            mimeType: 'text/plain',
+            contentBase64: Buffer.from(message.content, 'utf-8').toString('base64'),
+          };
+        }),
+      );
+
+      return res.status(200).json({ files });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to attach messages';
+      if (message === 'Integration is not connected') {
+        return res.status(404).json({ error: message });
+      }
+      logger.error('[integrations] attachProviderMessages error:', error);
+      return res.status(500).json({ error: 'Failed to attach messages' });
+    }
+  }
+
+  async function listProviderEventsHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (providerKey !== 'google-calendar') {
+        return res.status(400).json({ error: 'Event listing is not supported for this provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+      const pageToken = typeof req.query.pageToken === 'string' ? req.query.pageToken : undefined;
+      const timeMin = typeof req.query.timeMin === 'string' ? req.query.timeMin : undefined;
+      const timeMax = typeof req.query.timeMax === 'string' ? req.query.timeMax : undefined;
+      const pageSizeRaw = typeof req.query.pageSize === 'string' ? Number(req.query.pageSize) : 10;
+      const pageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
+
+      const token = await nangoService.getProviderAccessToken(user, providerKey);
+      const result = await listGoogleCalendarEvents(token.accessToken, {
+        query,
+        timeMin,
+        timeMax,
+        pageSize,
+        pageToken,
+      });
+
+      return res.status(200).json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to list events';
+      if (message === 'Integration is not connected') {
+        return res.status(404).json({ error: message });
+      }
+      logger.error('[integrations] listProviderEvents error:', error);
+      return res.status(500).json({ error: 'Failed to list events' });
+    }
+  }
+
+  async function attachProviderEventsHandler(req: ServerRequest, res: Response) {
+    try {
+      const user = getRequestUser(req);
+      if (!user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const { providerKey } = req.params as { providerKey: string };
+      if (providerKey !== 'google-calendar') {
+        return res.status(400).json({ error: 'Event attach is not supported for this provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const body = req.body as IntegrationEventsAttachRequest;
+      if (!Array.isArray(body?.eventIds) || body.eventIds.length === 0) {
+        return res.status(400).json({ error: 'At least one event ID is required' });
+      }
+
+      const token = await nangoService.getProviderAccessToken(user, providerKey);
+      const files = await Promise.all(
+        body.eventIds.map(async (eventId) => {
+          const event = await getGoogleCalendarEvent(token.accessToken, eventId);
+          const formatted = formatGoogleCalendarEventAsText(event);
+          return {
+            fileName: formatted.fileName,
+            mimeType: 'text/plain',
+            contentBase64: Buffer.from(formatted.content, 'utf-8').toString('base64'),
+          };
+        }),
+      );
+
+      return res.status(200).json({ files });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to attach events';
+      if (message === 'Integration is not connected') {
+        return res.status(404).json({ error: message });
+      }
+      if (message.startsWith('Calendar event not found')) {
+        return res.status(404).json({ error: message });
+      }
+      logger.error('[integrations] attachProviderEvents error:', error);
+      return res.status(500).json({ error: 'Failed to attach events' });
+    }
+  }
+
   return {
     listIntegrations: listIntegrationsHandler,
     getProviderStatus: getProviderStatusHandler,
@@ -208,6 +482,12 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
     confirmConnection: confirmConnectionHandler,
     getProviderToken: getProviderTokenHandler,
     disconnectProvider: disconnectProviderHandler,
+    searchProviderFiles: searchProviderFilesHandler,
+    downloadProviderFiles: downloadProviderFilesHandler,
+    searchProviderMessages: searchProviderMessagesHandler,
+    attachProviderMessages: attachProviderMessagesHandler,
+    listProviderEvents: listProviderEventsHandler,
+    attachProviderEvents: attachProviderEventsHandler,
     getUserId,
   };
 }

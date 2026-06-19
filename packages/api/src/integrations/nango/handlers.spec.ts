@@ -3,6 +3,7 @@ import type { IUser } from '@librechat/data-schemas';
 import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
 import type { IntegrationProviderStatus } from '../providers';
+import * as driveApi from '../googleDrive/driveApi';
 import { createAdminIntegrationHandlers, createIntegrationHandlers } from './handlers';
 
 jest.mock('@librechat/data-schemas', () => ({
@@ -176,6 +177,30 @@ describe('createIntegrationHandlers', () => {
         expiresAt: '2026-06-18T13:00:00.000Z',
         tokenType: 'Bearer',
       },
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'google-drive');
+  });
+
+  it('searches Google Drive files for connected users', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'google-drive' },
+    });
+    req.query = { query: 'budget', pageSize: '5' };
+
+    jest.spyOn(driveApi, 'searchGoogleDriveFiles').mockResolvedValue({
+      files: [{ id: 'file-1', name: 'Budget.xlsx', mimeType: 'application/vnd.ms-excel' }],
+    });
+
+    await handlers.searchProviderFiles(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      files: [{ id: 'file-1', name: 'Budget.xlsx', mimeType: 'application/vnd.ms-excel' }],
     });
     expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'google-drive');
   });

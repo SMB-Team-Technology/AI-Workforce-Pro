@@ -40,3 +40,26 @@ export type {
   GoogleDriveSearchOptions,
   GoogleDriveSearchResult,
 } from './googleDrive/driveApi';
+export { getGmailMessageAsText, searchGmailMessages } from './googleMail/mailApi';
+export type {
+  GmailMessageSummary,
+  GmailSearchOptions,
+  GmailSearchResult,
+} from './googleMail/mailApi';
+export {
+  formatGoogleCalendarEventAsText,
+  getGoogleCalendarEvent,
+  listGoogleCalendarEvents,
+} from './googleCalendar/calendarApi';
+export type {
+  GoogleCalendarEventSummary,
+  GoogleCalendarListOptions,
+  GoogleCalendarListResult,
+} from './googleCalendar/calendarApi';
+export type {
+  IntegrationAttachedFile,
+  IntegrationEventsAttachRequest,
+  IntegrationFileDownloadRequest,
+  IntegrationFilesDownloadResponse,
+  IntegrationMessagesAttachRequest,
+} from './types';

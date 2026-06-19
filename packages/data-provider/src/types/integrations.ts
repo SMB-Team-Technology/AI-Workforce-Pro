@@ -44,3 +44,56 @@ export interface IntegrationConfirmResponse {
   status: IntegrationConnectionStatus;
   connectionId: string;
 }
+
+export interface GoogleDriveFileSummary {
+  id: string;
+  name: string;
+  mimeType: string;
+  webViewLink?: string;
+  modifiedTime?: string;
+  size?: string;
+}
+
+export interface GoogleDriveSearchResponse {
+  files: GoogleDriveFileSummary[];
+  nextPageToken?: string;
+}
+
+export interface GmailMessageSummary {
+  id: string;
+  threadId: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+}
+
+export interface GmailSearchResponse {
+  messages: GmailMessageSummary[];
+  nextPageToken?: string;
+}
+
+export interface GoogleCalendarEventSummary {
+  id: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  start?: string;
+  end?: string;
+  htmlLink?: string;
+}
+
+export interface GoogleCalendarListResponse {
+  events: GoogleCalendarEventSummary[];
+  nextPageToken?: string;
+}
+
+export interface IntegrationAttachedFile {
+  fileName: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
+export interface IntegrationFilesDownloadResponse {
+  files: IntegrationAttachedFile[];
+}

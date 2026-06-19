@@ -507,3 +507,20 @@ export const integrationConfirm = (providerKey: string) =>
   `${integrationsRoot}/${providerKey}/confirm`;
 
 export const integrationDisconnect = (providerKey: string) => `${integrationsRoot}/${providerKey}`;
+
+export const integrationFiles = (providerKey: string) => `${integrationsRoot}/${providerKey}/files`;
+
+export const integrationFilesDownload = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/files/download`;
+
+export const integrationMessages = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/messages`;
+
+export const integrationMessagesAttach = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/messages/attach`;
+
+export const integrationEvents = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/events`;
+
+export const integrationEventsAttach = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/events/attach`;

@@ -506,6 +506,8 @@ const nativeTools = new Set([
   Tools.file_search,
   Tools.web_search,
   Tools.google_drive,
+  Tools.google_mail,
+  Tools.google_calendar,
 ]);
 
 /** Checks if a tool name is a known built-in tool */

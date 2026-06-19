@@ -289,6 +289,8 @@ export const defaultAgentFormValues = {
   [Tools.file_search]: false,
   [Tools.web_search]: false,
   [Tools.google_drive]: false,
+  [Tools.google_mail]: false,
+  [Tools.google_calendar]: false,
   category: 'general',
   support_contact: {
     name: '',

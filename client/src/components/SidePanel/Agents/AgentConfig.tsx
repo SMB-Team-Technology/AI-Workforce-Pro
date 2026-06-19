@@ -32,6 +32,8 @@ import AgentAvatar from './AgentAvatar';
 import FileContext from './FileContext';
 import SearchForm from './Search/Form';
 import GoogleDriveForm from './GoogleDrive/Form';
+import GoogleMailForm from './GoogleMail/Form';
+import GoogleCalendarForm from './GoogleCalendar/Form';
 import FileSearch from './FileSearch';
 import Artifacts from './Artifacts';
 import AgentTool from './AgentTool';
@@ -336,6 +338,8 @@ export default function AgentConfig() {
             {webSearchEnabled && <SearchForm />}
             {/* Google Drive */}
             {integrationsEnabled && <GoogleDriveForm />}
+            {integrationsEnabled && <GoogleMailForm />}
+            {integrationsEnabled && <GoogleCalendarForm />}
             {/* File Context */}
             {contextEnabled && <FileContext agent_id={agent_id} files={context_files} />}
             {/* Artifacts */}

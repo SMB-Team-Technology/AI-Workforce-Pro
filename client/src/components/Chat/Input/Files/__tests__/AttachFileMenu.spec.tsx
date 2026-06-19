@@ -20,6 +20,18 @@ jest.mock('~/hooks/Files/useSharePointFileHandling', () => ({
   useSharePointFileHandlingNoChatContext: jest.fn(),
 }));
 
+jest.mock('~/hooks/Files/useGoogleDriveFileHandling', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  useGoogleDriveFileHandlingNoChatContext: jest.fn(),
+}));
+
+jest.mock('~/hooks/Files/useIntegrationTextAttachHandling', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  useIntegrationTextAttachHandlingNoChatContext: jest.fn(),
+}));
+
 jest.mock('~/data-provider', () => ({
   useGetStartupConfig: jest.fn(),
   useIntegrationsQuery: jest.fn(),
@@ -31,6 +43,9 @@ jest.mock('~/components/SharePoint', () => ({
 
 jest.mock('~/components/Integrations', () => ({
   ConnectProviderPrompt: () => null,
+  GoogleDrivePickerDialog: () => null,
+  GmailPickerDialog: () => null,
+  GoogleCalendarPickerDialog: () => null,
   INTEGRATION_ATTACH_MENU: [],
 }));
 
@@ -96,6 +111,12 @@ const mockUseSharePointFileHandling = jest.requireMock(
 const mockUseSharePointFileHandlingNoChatContext = jest.requireMock(
   '~/hooks/Files/useSharePointFileHandling',
 ).useSharePointFileHandlingNoChatContext;
+const mockUseGoogleDriveFileHandlingNoChatContext = jest.requireMock(
+  '~/hooks/Files/useGoogleDriveFileHandling',
+).useGoogleDriveFileHandlingNoChatContext;
+const mockUseIntegrationTextAttachHandlingNoChatContext = jest.requireMock(
+  '~/hooks/Files/useIntegrationTextAttachHandling',
+).useIntegrationTextAttachHandlingNoChatContext;
 const mockUseGetStartupConfig = jest.requireMock('~/data-provider').useGetStartupConfig;
 const mockUseIntegrationsQuery = jest.requireMock('~/data-provider').useIntegrationsQuery;
 const mockUseNangoConnect = jest.requireMock('~/hooks').useNangoConnect;
@@ -128,6 +149,17 @@ function setupMocks(overrides: { provider?: string } = {}) {
   };
   mockUseSharePointFileHandling.mockReturnValue(sharePointReturnValue);
   mockUseSharePointFileHandlingNoChatContext.mockReturnValue(sharePointReturnValue);
+  mockUseGoogleDriveFileHandlingNoChatContext.mockReturnValue({
+    handleGoogleDriveFiles: jest.fn(),
+    isProcessing: false,
+    error: null,
+  });
+  mockUseIntegrationTextAttachHandlingNoChatContext.mockReturnValue({
+    attachGmailMessages: jest.fn(),
+    attachCalendarEvents: jest.fn(),
+    isProcessing: false,
+    error: null,
+  });
   mockUseGetStartupConfig.mockReturnValue({ data: { sharePointFilePickerEnabled: false } });
   mockUseIntegrationsQuery.mockReturnValue({ data: { integrations: [] } });
   mockUseNangoConnect.mockReturnValue({

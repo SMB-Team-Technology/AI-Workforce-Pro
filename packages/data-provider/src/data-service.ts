@@ -1302,6 +1302,102 @@ export function disconnectIntegration(providerKey: string): Promise<{ success: b
   return request.delete(endpoints.integrationDisconnect(providerKey));
 }
 
+export function searchIntegrationFiles(
+  providerKey: string,
+  params: { query?: string; pageToken?: string; pageSize?: number } = {},
+): Promise<import('./types/integrations').GoogleDriveSearchResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.query) {
+    searchParams.set('query', params.query);
+  }
+  if (params.pageToken) {
+    searchParams.set('pageToken', params.pageToken);
+  }
+  if (params.pageSize != null) {
+    searchParams.set('pageSize', String(params.pageSize));
+  }
+  const query = searchParams.toString();
+  const url = query
+    ? `${endpoints.integrationFiles(providerKey)}?${query}`
+    : endpoints.integrationFiles(providerKey);
+  return request.get(url);
+}
+
+export function downloadIntegrationFiles(
+  providerKey: string,
+  files: Array<{ id: string; name: string; mimeType: string }>,
+): Promise<import('./types/integrations').IntegrationFilesDownloadResponse> {
+  return request.post(endpoints.integrationFilesDownload(providerKey), { files });
+}
+
+export function searchIntegrationMessages(
+  providerKey: string,
+  params: { query?: string; pageToken?: string; pageSize?: number } = {},
+): Promise<import('./types/integrations').GmailSearchResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.query) {
+    searchParams.set('query', params.query);
+  }
+  if (params.pageToken) {
+    searchParams.set('pageToken', params.pageToken);
+  }
+  if (params.pageSize != null) {
+    searchParams.set('pageSize', String(params.pageSize));
+  }
+  const query = searchParams.toString();
+  const url = query
+    ? `${endpoints.integrationMessages(providerKey)}?${query}`
+    : endpoints.integrationMessages(providerKey);
+  return request.get(url);
+}
+
+export function attachIntegrationMessages(
+  providerKey: string,
+  messageIds: string[],
+): Promise<import('./types/integrations').IntegrationFilesDownloadResponse> {
+  return request.post(endpoints.integrationMessagesAttach(providerKey), { messageIds });
+}
+
+export function listIntegrationEvents(
+  providerKey: string,
+  params: {
+    query?: string;
+    pageToken?: string;
+    pageSize?: number;
+    timeMin?: string;
+    timeMax?: string;
+  } = {},
+): Promise<import('./types/integrations').GoogleCalendarListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.query) {
+    searchParams.set('query', params.query);
+  }
+  if (params.pageToken) {
+    searchParams.set('pageToken', params.pageToken);
+  }
+  if (params.pageSize != null) {
+    searchParams.set('pageSize', String(params.pageSize));
+  }
+  if (params.timeMin) {
+    searchParams.set('timeMin', params.timeMin);
+  }
+  if (params.timeMax) {
+    searchParams.set('timeMax', params.timeMax);
+  }
+  const query = searchParams.toString();
+  const url = query
+    ? `${endpoints.integrationEvents(providerKey)}?${query}`
+    : endpoints.integrationEvents(providerKey);
+  return request.get(url);
+}
+
+export function attachIntegrationEvents(
+  providerKey: string,
+  eventIds: string[],
+): Promise<import('./types/integrations').IntegrationFilesDownloadResponse> {
+  return request.post(endpoints.integrationEventsAttach(providerKey), { eventIds });
+}
+
 export function getDomainServerBaseUrl(): string {
   return `${endpoints.apiBaseUrl()}/api`;
 }

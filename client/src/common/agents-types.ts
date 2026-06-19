@@ -27,6 +27,8 @@ export type TAgentCapabilities = {
   [AgentCapabilities.end_after_tools]?: boolean;
   [AgentCapabilities.hide_sequential_outputs]?: boolean;
   [Tools.google_drive]?: boolean;
+  [Tools.google_mail]?: boolean;
+  [Tools.google_calendar]?: boolean;
 };
 
 export type AgentForm = {

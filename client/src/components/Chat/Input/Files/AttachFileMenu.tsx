@@ -38,8 +38,16 @@ import {
   useLocalize,
 } from '~/hooks';
 import { useSharePointFileHandlingNoChatContext } from '~/hooks/Files/useSharePointFileHandling';
+import { useGoogleDriveFileHandlingNoChatContext } from '~/hooks/Files/useGoogleDriveFileHandling';
+import { useIntegrationTextAttachHandlingNoChatContext } from '~/hooks/Files/useIntegrationTextAttachHandling';
 import { SharePointPickerDialog } from '~/components/SharePoint';
-import { ConnectProviderPrompt, INTEGRATION_ATTACH_MENU } from '~/components/Integrations';
+import {
+  ConnectProviderPrompt,
+  GmailPickerDialog,
+  GoogleCalendarPickerDialog,
+  GoogleDrivePickerDialog,
+  INTEGRATION_ATTACH_MENU,
+} from '~/components/Integrations';
 import { useGetStartupConfig, useIntegrationsQuery } from '~/data-provider';
 import { useNangoConnect } from '~/hooks';
 import { ephemeralAgentByConvoId } from '~/store';
@@ -99,6 +107,19 @@ const AttachFileMenu = ({
       { toolResource: toolResourceRef.current },
       { files, setFiles, setFilesLoading, conversation },
     );
+  const { handleGoogleDriveFiles, isProcessing: isDriveProcessing } =
+    useGoogleDriveFileHandlingNoChatContext(
+      { toolResource: toolResourceRef.current },
+      { files, setFiles, setFilesLoading, conversation },
+    );
+  const {
+    attachGmailMessages,
+    attachCalendarEvents,
+    isProcessing: isTextAttachProcessing,
+  } = useIntegrationTextAttachHandlingNoChatContext(
+    { toolResource: toolResourceRef.current, providerLabel: 'Integration' },
+    { files, setFiles, setFilesLoading, conversation },
+  );
 
   const { agentsConfig } = useGetAgentsConfig();
   const { data: startupConfig } = useGetStartupConfig();
@@ -106,6 +127,8 @@ const AttachFileMenu = ({
   const integrationsEnabled = startupConfig?.integrationsEnabled === true;
 
   const [isSharePointDialogOpen, setIsSharePointDialogOpen] = useState(false);
+  const [activeIntegrationPicker, setActiveIntegrationPicker] =
+    useState<IntegrationProviderKey | null>(null);
   const [connectPromptProvider, setConnectPromptProvider] = useState<IntegrationProviderKey | null>(
     null,
   );
@@ -299,6 +322,14 @@ const AttachFileMenu = ({
           label: localize(menuLabelKey as Parameters<typeof localize>[0]),
           onClick: () => {
             if (isConnected) {
+              if (
+                providerKey === 'google-drive' ||
+                providerKey === 'google-mail' ||
+                providerKey === 'google-calendar'
+              ) {
+                toolResourceRef.current = EToolResources.context;
+              }
+              setActiveIntegrationPicker(providerKey);
               return;
             }
             setConnectPromptProvider(providerKey);
@@ -338,6 +369,7 @@ const AttachFileMenu = ({
     codeAllowedByAgent,
     fileSearchAllowedByAgent,
     setIsSharePointDialogOpen,
+    setActiveIntegrationPicker,
   ]);
 
   const menuTrigger = (
@@ -382,6 +414,35 @@ const AttachFileMenu = ({
     }
   };
 
+  const handleGoogleDriveFilesSelected = async (
+    driveFiles: Parameters<typeof handleGoogleDriveFiles>[0],
+  ) => {
+    try {
+      await handleGoogleDriveFiles(driveFiles);
+      setActiveIntegrationPicker(null);
+    } catch (error) {
+      console.error('Google Drive file processing error:', error);
+    }
+  };
+
+  const handleGmailMessagesSelected = async (messages: Array<{ id: string }>) => {
+    try {
+      await attachGmailMessages(messages.map((message) => message.id));
+      setActiveIntegrationPicker(null);
+    } catch (error) {
+      console.error('Gmail attach error:', error);
+    }
+  };
+
+  const handleCalendarEventsSelected = async (events: Array<{ id: string }>) => {
+    try {
+      await attachCalendarEvents(events.map((event) => event.id));
+      setActiveIntegrationPicker(null);
+    } catch (error) {
+      console.error('Google Calendar attach error:', error);
+    }
+  };
+
   return (
     <>
       <FileUpload
@@ -409,6 +470,39 @@ const AttachFileMenu = ({
         onFilesSelected={handleSharePointFilesSelected}
         isDownloading={isProcessing}
         downloadProgress={downloadProgress}
+        maxSelectionCount={endpointFileConfig?.fileLimit}
+      />
+      <GoogleDrivePickerDialog
+        isOpen={activeIntegrationPicker === 'google-drive'}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveIntegrationPicker(null);
+          }
+        }}
+        onFilesSelected={handleGoogleDriveFilesSelected}
+        isAttaching={isDriveProcessing}
+        maxSelectionCount={endpointFileConfig?.fileLimit}
+      />
+      <GmailPickerDialog
+        isOpen={activeIntegrationPicker === 'google-mail'}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveIntegrationPicker(null);
+          }
+        }}
+        onMessagesSelected={handleGmailMessagesSelected}
+        isAttaching={isTextAttachProcessing}
+        maxSelectionCount={endpointFileConfig?.fileLimit}
+      />
+      <GoogleCalendarPickerDialog
+        isOpen={activeIntegrationPicker === 'google-calendar'}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveIntegrationPicker(null);
+          }
+        }}
+        onEventsSelected={handleCalendarEventsSelected}
+        isAttaching={isTextAttachProcessing}
         maxSelectionCount={endpointFileConfig?.fileLimit}
       />
       <ConnectProviderPrompt
