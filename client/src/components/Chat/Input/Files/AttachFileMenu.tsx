@@ -235,6 +235,15 @@ const AttachFileMenu = ({
     [endpointFileConfig?.supportedMimeTypes],
   );
 
+  const closeAttachMenu = useCallback(() => {
+    setIsPopoverActive(false);
+  }, []);
+
+  const openDrivePicker = useCallback(() => {
+    closeAttachMenu();
+    setActiveIntegrationPicker('google-drive');
+  }, [closeAttachMenu]);
+
   const dropdownItems = useMemo(() => {
     const setToolResource = (value: EToolResources | undefined) => {
       toolResourceRef.current = value;
@@ -349,20 +358,28 @@ const AttachFileMenu = ({
         const providerKey = integration.providerKey;
         const { menuLabelKey, Icon } = menuConfig;
 
+        if (providerKey === 'google-drive' && isConnected) {
+          localItems.push({
+            label: localize(menuLabelKey as Parameters<typeof localize>[0]),
+            onClick: () => {},
+            icon: <Icon className="icon-md" />,
+            subItems: createMenuItems(openDrivePicker),
+          });
+          continue;
+        }
+
         localItems.push({
           label: localize(menuLabelKey as Parameters<typeof localize>[0]),
           onClick: () => {
             if (isConnected) {
-              if (
-                providerKey === 'google-drive' ||
-                providerKey === 'google-mail' ||
-                providerKey === 'google-calendar'
-              ) {
+              if (providerKey === 'google-mail' || providerKey === 'google-calendar') {
                 toolResourceRef.current = EToolResources.context;
               }
+              closeAttachMenu();
               setActiveIntegrationPicker(providerKey);
               return;
             }
+            closeAttachMenu();
             setConnectPromptProvider(providerKey);
           },
           icon: <Icon className="icon-md" />,
@@ -372,8 +389,8 @@ const AttachFileMenu = ({
 
     if (sharePointEnabled) {
       const sharePointItems = createMenuItems(() => {
+        closeAttachMenu();
         setIsSharePointDialogOpen(true);
-        // Note: toolResource will be set by the specific item clicked
       });
       localItems.push({
         label: localize('com_files_upload_sharepoint'),
@@ -399,6 +416,8 @@ const AttachFileMenu = ({
     integrationsList?.integrations,
     codeAllowedByAgent,
     fileSearchAllowedByAgent,
+    closeAttachMenu,
+    openDrivePicker,
     setIsSharePointDialogOpen,
     setActiveIntegrationPicker,
   ]);
@@ -448,6 +467,7 @@ const AttachFileMenu = ({
   const handleGoogleDriveFilesSelected = async (
     driveFiles: Parameters<typeof handleGoogleDriveFiles>[0],
   ) => {
+    closeAttachMenu();
     try {
       await handleGoogleDriveFiles(driveFiles);
       setActiveIntegrationPicker(null);
@@ -510,6 +530,7 @@ const AttachFileMenu = ({
         isOpen={activeIntegrationPicker === 'google-drive'}
         onOpenChange={(open) => {
           if (!open) {
+            closeAttachMenu();
             setActiveIntegrationPicker(null);
           }
         }}

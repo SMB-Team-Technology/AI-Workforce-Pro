@@ -176,6 +176,8 @@ Optional **PR-2:** Nango webhook `auth` event can also upsert Mongo (redundant w
 | No unnecessary re-login | Nango refresh; store only `connectionId` locally |
 | Reconnect | Same `auth()` flow; stale Mongo row removed on disconnect |
 | Connect in context | CTA when agent/tool needs Drive — not only a settings page |
+| Drive file destination | When connected, attach menu **From Google Drive** expands like SharePoint: context (OCR), file search, or code environment |
+| Gmail / Calendar attach | Single menu item → always attaches as `tool_resource: context` (`.txt` summaries) |
 | Connection identity | `connectionId` = authenticated LibreChat `userId` |
 
 **Anti-patterns (avoid):**
@@ -435,6 +437,7 @@ PR-1 → PR-4 → PR-3 → PR-5 → Legacy OAuth → PR-2 (before prod)
 - [x] When tool/agent needs Drive and user not connected → inline prompt
 - [x] After OAuth + confirm → retry operation
 - [x] No Admin Panel redirect required for normal users
+- [x] Google Drive attach submenu (context / file search / code environment) when connected — same pattern as SharePoint
 
 ### PR-5 acceptance criteria (token endpoint)
 
@@ -528,11 +531,12 @@ npm run build
 | Item | Status |
 |------|--------|
 | **Google Drive file picker** | **Done** — search/list dialog + server download attach |
+| **Google Drive attach destinations** | **Done** — submenu: context (OCR), file search, code environment (parity with SharePoint) |
 | **Gmail / Calendar agent tools** | **Done** — `google_mail`, `google_calendar` tools + agent checkboxes |
-| **Post-connect chat actions** | **Done** — Gmail/Calendar attach as `.txt` context files |
+| **Post-connect chat actions** | **Done** — Gmail/Calendar attach as `.txt` context files (always `tool_resource: context`) |
 | **Attach menu when connected** | **Done** — opens picker dialogs for Drive, Gmail, Calendar |
 
-Remaining polish (optional): Google Picker JS widget, inline send-mail / create-event actions, email reconnect links for admins.
+Remaining polish (optional): Google Picker JS widget (needs `GOOGLE_PICKER_API_KEY`), inline send-mail / create-event actions, email reconnect links for admins.
 
 ### Ops / release
 

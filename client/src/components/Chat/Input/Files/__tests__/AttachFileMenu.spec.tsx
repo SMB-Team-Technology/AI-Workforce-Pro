@@ -41,13 +41,22 @@ jest.mock('~/components/SharePoint', () => ({
   SharePointPickerDialog: () => null,
 }));
 
-jest.mock('~/components/Integrations', () => ({
-  ConnectProviderPrompt: () => null,
-  GoogleDrivePickerDialog: () => null,
-  GmailPickerDialog: () => null,
-  GoogleCalendarPickerDialog: () => null,
-  INTEGRATION_ATTACH_MENU: [],
-}));
+jest.mock('~/components/Integrations', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const R = require('react');
+  return {
+    ConnectProviderPrompt: () => null,
+    GoogleDrivePickerDialog: () => null,
+    GmailPickerDialog: () => null,
+    GoogleCalendarPickerDialog: () => null,
+    INTEGRATION_ATTACH_MENU: {
+      'google-drive': {
+        menuLabelKey: 'com_files_upload_google_drive',
+        Icon: () => R.createElement('span', { 'data-testid': 'google-drive-icon' }),
+      },
+    },
+  };
+});
 
 jest.mock('@librechat/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -77,13 +86,31 @@ jest.mock('@librechat/client', () => {
           R.createElement(
             'div',
             { 'data-testid': 'dropdown-menu' },
-            props.items.map((item, idx) =>
-              R.createElement(
-                'button',
-                { key: idx, onClick: item.onClick, 'data-testid': `menu-item-${idx}` },
-                item.label,
-              ),
-            ),
+            props.items.flatMap((item, idx) => {
+              const nodes = [
+                R.createElement(
+                  'button',
+                  { key: `item-${idx}`, onClick: item.onClick, 'data-testid': `menu-item-${idx}` },
+                  item.label,
+                ),
+              ];
+              if (item.subItems?.length) {
+                for (const [subIdx, subItem] of item.subItems.entries()) {
+                  nodes.push(
+                    R.createElement(
+                      'button',
+                      {
+                        key: `item-${idx}-sub-${subIdx}`,
+                        onClick: subItem.onClick,
+                        'data-testid': `submenu-item-${subItem.label}`,
+                      },
+                      subItem.label,
+                    ),
+                  );
+                }
+              }
+              return nodes;
+            }),
           ),
       ),
     AttachmentIcon: () => R.createElement('span', { 'data-testid': 'attachment-icon' }),
@@ -126,6 +153,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false 
 function setupMocks(overrides: { provider?: string } = {}) {
   const translations: Record<string, string> = {
     com_files_upload_sharepoint: 'Upload from SharePoint',
+    com_files_upload_google_drive: 'From Google Drive',
     com_sidepanel_attach_files: 'Attach Files',
     com_ui_upload_code_environment: 'Upload to Code Environment',
     com_ui_upload_file_search: 'Upload for File Search',
@@ -160,7 +188,9 @@ function setupMocks(overrides: { provider?: string } = {}) {
     isProcessing: false,
     error: null,
   });
-  mockUseGetStartupConfig.mockReturnValue({ data: { sharePointFilePickerEnabled: false } });
+  mockUseGetStartupConfig.mockReturnValue({
+    data: { sharePointFilePickerEnabled: false, integrationsEnabled: false },
+  });
   mockUseIntegrationsQuery.mockReturnValue({ data: { integrations: [] } });
   mockUseNangoConnect.mockReturnValue({
     ensureConnected: jest.fn().mockResolvedValue(false),
@@ -440,7 +470,7 @@ describe('AttachFileMenu', () => {
     it('shows SharePoint option when enabled', () => {
       setupMocks();
       mockUseGetStartupConfig.mockReturnValue({
-        data: { sharePointFilePickerEnabled: true },
+        data: { sharePointFilePickerEnabled: true, integrationsEnabled: false },
       });
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
@@ -452,6 +482,63 @@ describe('AttachFileMenu', () => {
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
       expect(screen.queryByText('Upload from SharePoint')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Google Drive Integration', () => {
+    it('shows destination submenu when Drive is connected', () => {
+      setupMocks();
+      mockUseGetStartupConfig.mockReturnValue({
+        data: { sharePointFilePickerEnabled: false, integrationsEnabled: true },
+      });
+      mockUseIntegrationsQuery.mockReturnValue({
+        data: {
+          integrations: [
+            {
+              providerKey: 'google-drive',
+              enabled: true,
+              status: 'connected',
+            },
+          ],
+        },
+      });
+      mockUseAgentCapabilities.mockReturnValue({
+        contextEnabled: true,
+        fileSearchEnabled: true,
+        codeEnabled: true,
+      });
+      mockUseAgentToolPermissions.mockReturnValue({
+        fileSearchAllowedByAgent: true,
+        codeAllowedByAgent: true,
+        provider: undefined,
+      });
+      renderMenu({ endpointType: EModelEndpoint.openAI });
+      openMenu();
+      expect(screen.getByText('From Google Drive')).toBeInTheDocument();
+      expect(screen.getByTestId('submenu-item-Upload as Text')).toBeInTheDocument();
+      expect(screen.getByTestId('submenu-item-Upload to Code Environment')).toBeInTheDocument();
+    });
+
+    it('shows flat connect item when Drive is not connected', () => {
+      setupMocks();
+      mockUseGetStartupConfig.mockReturnValue({
+        data: { sharePointFilePickerEnabled: false, integrationsEnabled: true },
+      });
+      mockUseIntegrationsQuery.mockReturnValue({
+        data: {
+          integrations: [
+            {
+              providerKey: 'google-drive',
+              enabled: true,
+              status: 'not_connected',
+            },
+          ],
+        },
+      });
+      renderMenu({ endpointType: EModelEndpoint.openAI });
+      openMenu();
+      expect(screen.getByText('From Google Drive')).toBeInTheDocument();
+      expect(screen.queryByTestId('submenu-item-Upload as Text')).not.toBeInTheDocument();
     });
   });
 
