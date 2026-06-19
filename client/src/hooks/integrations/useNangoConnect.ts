@@ -15,6 +15,7 @@ import {
   useIntegrationStatusQuery,
 } from '~/data-provider';
 import { isIntegrationReconnectSuccess } from '~/components/Integrations/connectPrompt';
+import { INTEGRATION_LABEL_KEYS } from '~/constants/integrations';
 import { useLocalize } from '~/hooks';
 
 interface UseNangoConnectOptions {
@@ -50,7 +51,10 @@ export function useNangoConnect({
   const status: IntegrationConnectionStatus | undefined = statusData?.integration?.status;
   const isConnected = isIntegrationConnected(status ?? 'not_connected');
   const needsReconnect = needsIntegrationReconnect(status ?? 'not_connected');
-  const labelKey = statusData?.integration?.labelKey ?? 'com_integrations_google_drive';
+  const labelKey =
+    statusData?.integration?.labelKey ??
+    INTEGRATION_LABEL_KEYS[providerKey] ??
+    'com_integrations_google_drive';
 
   const syncStatus = useCallback(async () => {
     await queryClient.invalidateQueries([QueryKeys.integrations]);
