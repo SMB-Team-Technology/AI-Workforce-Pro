@@ -18,20 +18,24 @@ describe('buildGoogleDriveFullTextQuery', () => {
 
 describe('searchGoogleDriveFiles', () => {
   const originalFetch = global.fetch;
+  const mockFetch = jest.fn() as unknown as jest.MockedFunction<typeof fetch>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = mockFetch;
+  });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    jest.restoreAllMocks();
   });
 
   it('requests files with the provided access token', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
+    mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
         files: [{ id: '1', name: 'Doc', mimeType: 'application/pdf' }],
       }),
-    });
-    global.fetch = fetchMock as typeof fetch;
+    } as unknown as Response);
 
     const result = await searchGoogleDriveFiles('token-123', {
       query: "fullText contains 'budget'",
@@ -39,13 +43,13 @@ describe('searchGoogleDriveFiles', () => {
     });
 
     expect(result.files).toHaveLength(1);
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('https://www.googleapis.com/drive/v3/files?'),
       expect.objectContaining({
         headers: { Authorization: 'Bearer token-123' },
       }),
     );
-    const requestUrl = fetchMock.mock.calls[0]?.[0] as string;
+    const requestUrl = mockFetch.mock.calls[0]?.[0] as string;
     expect(requestUrl).toContain('pageSize=5');
     expect(requestUrl).toContain('fullText+contains');
     expect(requestUrl).toContain('budget');
@@ -54,19 +58,23 @@ describe('searchGoogleDriveFiles', () => {
 
 describe('downloadGoogleDriveFile', () => {
   const originalFetch = global.fetch;
+  const mockFetch = jest.fn() as unknown as jest.MockedFunction<typeof fetch>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = mockFetch;
+  });
 
   afterEach(() => {
     global.fetch = originalFetch;
-    jest.restoreAllMocks();
   });
 
   it('exports Google Docs as PDF', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
+    mockFetch.mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/pdf' },
       arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
-    });
-    global.fetch = fetchMock as typeof fetch;
+    } as unknown as Response);
 
     const result = await downloadGoogleDriveFile('token-123', {
       id: 'doc-1',
@@ -76,7 +84,7 @@ describe('downloadGoogleDriveFile', () => {
 
     expect(result.fileName).toBe('Quarterly Plan.pdf');
     expect(result.mimeType).toBe('application/pdf');
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(mockFetch).toHaveBeenCalledWith(
       'https://www.googleapis.com/drive/v3/files/doc-1/export?mimeType=application%2Fpdf',
       expect.any(Object),
     );
