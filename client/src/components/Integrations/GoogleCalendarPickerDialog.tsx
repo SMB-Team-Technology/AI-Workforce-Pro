@@ -5,12 +5,15 @@ import { useGoogleCalendarEventsQuery } from '~/data-provider';
 import { useDebounce, useLocalize } from '~/hooks';
 import { IntegrationPickerDialogShell } from './IntegrationPickerDialogShell';
 
+import { isIntegrationReconnectApiError } from '~/utils/integrationReconnect';
+
 interface GoogleCalendarPickerDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onEventsSelected: (events: GoogleCalendarEventSummary[]) => void;
   isAttaching?: boolean;
   maxSelectionCount?: number;
+  onReconnect?: () => void;
 }
 
 export function GoogleCalendarPickerDialog({
@@ -19,6 +22,7 @@ export function GoogleCalendarPickerDialog({
   onEventsSelected,
   isAttaching = false,
   maxSelectionCount,
+  onReconnect,
 }: GoogleCalendarPickerDialogProps) {
   const localize = useLocalize();
   const [search, setSearch] = useState('');
@@ -45,7 +49,7 @@ export function GoogleCalendarPickerDialog({
     }
   }, [isOpen]);
 
-  const { data, isLoading, isFetching } = useGoogleCalendarEventsQuery({
+  const { data, isLoading, isFetching, isError, error } = useGoogleCalendarEventsQuery({
     query: debouncedSearch || undefined,
     pageToken,
     pageSize: 15,
@@ -102,6 +106,8 @@ export function GoogleCalendarPickerDialog({
     onEventsSelected(selectedEvents);
   };
 
+  const showReconnectError = isError && isIntegrationReconnectApiError(error);
+
   return (
     <IntegrationPickerDialogShell
       isOpen={isOpen}
@@ -116,6 +122,8 @@ export function GoogleCalendarPickerDialog({
       }}
       isLoading={isLoading || (isFetching && events.length === 0)}
       isAttaching={isAttaching}
+      isError={showReconnectError}
+      onReconnect={onReconnect}
       selectedCount={selectedIds.size}
       maxSelectionCount={maxSelectionCount}
       onAttach={handleAttach}

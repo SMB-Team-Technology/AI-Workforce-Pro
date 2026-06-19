@@ -394,7 +394,7 @@ Dependency: `@nangohq/frontend@0.36.101`
 | **Legacy migration** | Both | SDK 0.36.101, `auth()` flow, connect-params/confirm endpoints | **Done** |
 | **PR-2** | Backend | Webhook handler, signature verification | **Pending** (before prod) |
 | **PR-6** | Both | Enable Microsoft, Dropbox, Box, Clio in registry + Nango | **Pending** |
-| **PR-7** | Both | Reconnect UX polish, connect links by email (optional) | **Pending** |
+| **PR-7** | Both | Reconnect UX polish, connect links by email (optional) | **Done** |
 
 ### Recommended order
 
@@ -514,7 +514,7 @@ npm run build
 |----|------|-------|----------|
 | **PR-2** | Backend | `POST /api/webhooks/nango` — HMAC verify, upsert on `auth`, revoke/delete on disconnect | **Before prod** |
 | **PR-6** | Both | Enable Microsoft, Dropbox, Box, Clio (Nango dashboard + registry + UI) | Medium |
-| **PR-7** | Both | Reconnect UX polish (expired/revoked tokens, clearer prompts) | Low |
+| **PR-7** | Both | Reconnect UX polish (expired/revoked tokens, clearer prompts) | **Done** |
 
 **PR-2 checklist:**
 
@@ -532,7 +532,7 @@ npm run build
 | **Post-connect chat actions** | **Done** — Gmail/Calendar attach as `.txt` context files |
 | **Attach menu when connected** | **Done** — opens picker dialogs for Drive, Gmail, Calendar |
 
-Remaining polish (optional): Google Picker JS widget, inline send-mail / create-event actions.
+Remaining polish (optional): Google Picker JS widget, inline send-mail / create-event actions, email reconnect links for admins.
 
 ### Ops / release
 

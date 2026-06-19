@@ -1,5 +1,6 @@
 import React, { useRef, useState, useMemo, useCallback } from 'react';
 import { useRecoilState } from 'recoil';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Ariakit from '@ariakit/react';
 import {
   FileSearch,
@@ -14,15 +15,18 @@ import {
   DropdownPopup,
   AttachmentIcon,
   SharePointIcon,
+  useToastContext,
 } from '@librechat/client';
 import {
   Providers,
   EToolResources,
   EModelEndpoint,
+  isIntegrationConnected,
   isPermissiveMimeConfig,
   defaultAgentCapabilities,
   bedrockDocumentExtensions,
   isDocumentSupportedProvider,
+  QueryKeys,
 } from 'librechat-data-provider';
 import type {
   EndpointFileConfig,
@@ -53,6 +57,7 @@ import { useNangoConnect } from '~/hooks';
 import { ephemeralAgentByConvoId } from '~/store';
 import { MenuItemProps } from '~/common';
 import { cn } from '~/utils';
+import { isIntegrationReconnectApiError } from '~/utils/integrationReconnect';
 
 type FileUploadType =
   | 'image'
@@ -89,6 +94,8 @@ const AttachFileMenu = ({
   conversation,
 }: AttachFileMenuProps) => {
   const localize = useLocalize();
+  const queryClient = useQueryClient();
+  const { showToast } = useToastContext();
   const isUploadDisabled = disabled ?? false;
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPopoverActive, setIsPopoverActive] = useState(false);
@@ -158,6 +165,30 @@ const AttachFileMenu = ({
   const connectPromptConnector = connectPromptProvider
     ? integrationConnectors[connectPromptProvider]
     : null;
+
+  const openIntegrationReconnect = useCallback(
+    (providerKey: IntegrationProviderKey) => {
+      setActiveIntegrationPicker(null);
+      setConnectPromptProvider(providerKey);
+      queryClient.invalidateQueries([QueryKeys.integrations]);
+      queryClient.invalidateQueries([QueryKeys.integrationStatus, providerKey]);
+    },
+    [queryClient],
+  );
+
+  const handleIntegrationAttachError = useCallback(
+    (error: unknown, providerKey: IntegrationProviderKey) => {
+      if (!isIntegrationReconnectApiError(error)) {
+        return;
+      }
+      showToast({
+        message: localize('com_integrations_reconnect_required_toast'),
+        status: 'warning',
+      });
+      openIntegrationReconnect(providerKey);
+    },
+    [localize, openIntegrationReconnect, showToast],
+  );
 
   const { data: integrationsList } = useIntegrationsQuery({
     enabled: integrationsEnabled,
@@ -314,7 +345,7 @@ const AttachFileMenu = ({
           continue;
         }
 
-        const isConnected = integration.status === 'connected';
+        const isConnected = isIntegrationConnected(integration.status);
         const providerKey = integration.providerKey;
         const { menuLabelKey, Icon } = menuConfig;
 
@@ -422,6 +453,7 @@ const AttachFileMenu = ({
       setActiveIntegrationPicker(null);
     } catch (error) {
       console.error('Google Drive file processing error:', error);
+      handleIntegrationAttachError(error, 'google-drive');
     }
   };
 
@@ -431,6 +463,7 @@ const AttachFileMenu = ({
       setActiveIntegrationPicker(null);
     } catch (error) {
       console.error('Gmail attach error:', error);
+      handleIntegrationAttachError(error, 'google-mail');
     }
   };
 
@@ -440,6 +473,7 @@ const AttachFileMenu = ({
       setActiveIntegrationPicker(null);
     } catch (error) {
       console.error('Google Calendar attach error:', error);
+      handleIntegrationAttachError(error, 'google-calendar');
     }
   };
 
@@ -482,6 +516,7 @@ const AttachFileMenu = ({
         onFilesSelected={handleGoogleDriveFilesSelected}
         isAttaching={isDriveProcessing}
         maxSelectionCount={endpointFileConfig?.fileLimit}
+        onReconnect={() => openIntegrationReconnect('google-drive')}
       />
       <GmailPickerDialog
         isOpen={activeIntegrationPicker === 'google-mail'}
@@ -493,6 +528,7 @@ const AttachFileMenu = ({
         onMessagesSelected={handleGmailMessagesSelected}
         isAttaching={isTextAttachProcessing}
         maxSelectionCount={endpointFileConfig?.fileLimit}
+        onReconnect={() => openIntegrationReconnect('google-mail')}
       />
       <GoogleCalendarPickerDialog
         isOpen={activeIntegrationPicker === 'google-calendar'}
@@ -504,6 +540,7 @@ const AttachFileMenu = ({
         onEventsSelected={handleCalendarEventsSelected}
         isAttaching={isTextAttachProcessing}
         maxSelectionCount={endpointFileConfig?.fileLimit}
+        onReconnect={() => openIntegrationReconnect('google-calendar')}
       />
       <ConnectProviderPrompt
         isOpen={connectPromptProvider != null}

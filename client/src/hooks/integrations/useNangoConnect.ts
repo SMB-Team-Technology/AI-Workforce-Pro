@@ -2,7 +2,11 @@ import { useCallback, useRef, useState } from 'react';
 import Nango from '@nangohq/frontend';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToastContext } from '@librechat/client';
-import { QueryKeys } from 'librechat-data-provider';
+import {
+  isIntegrationConnected,
+  needsIntegrationReconnect,
+  QueryKeys,
+} from 'librechat-data-provider';
 import type { IntegrationConnectionStatus, IntegrationProviderKey } from 'librechat-data-provider';
 import {
   useConfirmIntegrationMutation,
@@ -10,6 +14,7 @@ import {
   useGetStartupConfig,
   useIntegrationStatusQuery,
 } from '~/data-provider';
+import { isIntegrationReconnectSuccess } from '~/components/Integrations/connectPrompt';
 import { useLocalize } from '~/hooks';
 
 interface UseNangoConnectOptions {
@@ -43,7 +48,8 @@ export function useNangoConnect({
   const connectInFlightRef = useRef(false);
 
   const status: IntegrationConnectionStatus | undefined = statusData?.integration?.status;
-  const isConnected = status === 'connected';
+  const isConnected = isIntegrationConnected(status ?? 'not_connected');
+  const needsReconnect = needsIntegrationReconnect(status ?? 'not_connected');
   const labelKey = statusData?.integration?.labelKey ?? 'com_integrations_google_drive';
 
   const syncStatus = useCallback(async () => {
@@ -67,6 +73,7 @@ export function useNangoConnect({
 
     connectInFlightRef.current = true;
     setIsConnecting(true);
+    const statusBeforeConnect = status;
 
     try {
       const params = await connectParamsMutation.mutateAsync(providerKey);
@@ -84,7 +91,11 @@ export function useNangoConnect({
       await confirmMutation.mutateAsync(providerKey);
       await syncStatus();
       showToast({
-        message: localize('com_integrations_connect_success'),
+        message: localize(
+          isIntegrationReconnectSuccess(statusBeforeConnect)
+            ? 'com_integrations_reconnect_success'
+            : 'com_integrations_connect_success',
+        ),
         status: 'success',
       });
       return true;
@@ -109,6 +120,7 @@ export function useNangoConnect({
     syncStatus,
     showToast,
     localize,
+    status,
   ]);
 
   const ensureConnected = useCallback(async (): Promise<boolean> => {
@@ -128,6 +140,7 @@ export function useNangoConnect({
     labelKey,
     status,
     isConnected,
+    needsReconnect,
     isConnecting,
     isLoading,
     integrationsEnabled,

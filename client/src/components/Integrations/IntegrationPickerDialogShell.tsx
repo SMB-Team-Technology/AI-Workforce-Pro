@@ -23,6 +23,9 @@ interface IntegrationPickerDialogShellProps {
   onAttach: () => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
+  isError?: boolean;
+  errorDescriptionKey?: string;
+  onReconnect?: () => void;
   children: React.ReactNode;
 }
 
@@ -40,6 +43,9 @@ export function IntegrationPickerDialogShell({
   onAttach,
   onLoadMore,
   hasMore = false,
+  isError = false,
+  errorDescriptionKey = 'com_integrations_picker_reconnect_required',
+  onReconnect,
   children,
 }: IntegrationPickerDialogShellProps) {
   const localize = useLocalize();
@@ -63,6 +69,17 @@ export function IntegrationPickerDialogShell({
           {isLoading ? (
             <div className="flex h-full min-h-[320px] items-center justify-center">
               <Spinner className="h-6 w-6" />
+            </div>
+          ) : isError ? (
+            <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 p-6 text-center">
+              <p className="text-sm text-text-secondary">
+                {localize(errorDescriptionKey as Parameters<typeof localize>[0])}
+              </p>
+              {onReconnect && (
+                <Button variant="submit" onClick={onReconnect}>
+                  {localize('com_integrations_reconnect_button')}
+                </Button>
+              )}
             </div>
           ) : (
             children

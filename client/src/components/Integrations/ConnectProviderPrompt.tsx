@@ -1,4 +1,4 @@
-import React from 'react';
+import type { IntegrationConnectionStatus } from 'librechat-data-provider';
 import {
   Button,
   OGDialog,
@@ -7,8 +7,8 @@ import {
   OGDialogTitle,
   Spinner,
 } from '@librechat/client';
-import type { IntegrationConnectionStatus } from 'librechat-data-provider';
 import { useLocalize } from '~/hooks';
+import { getConnectPromptCopy } from './connectPrompt';
 import { IntegrationStatusChip } from './IntegrationStatusChip';
 
 interface ConnectProviderPromptProps {
@@ -30,15 +30,16 @@ export function ConnectProviderPrompt({
 }: ConnectProviderPromptProps) {
   const localize = useLocalize();
   const providerLabel = localize(labelKey as Parameters<typeof localize>[0]);
+  const { titleKey, descriptionKey, buttonKey } = getConnectPromptCopy(status);
 
   return (
     <OGDialog open={isOpen} onOpenChange={onOpenChange}>
       <OGDialogContent className="max-w-md">
         <OGDialogTitle>
-          {localize('com_integrations_connect_title', { provider: providerLabel })}
+          {localize(titleKey as Parameters<typeof localize>[0], { provider: providerLabel })}
         </OGDialogTitle>
         <OGDialogDescription>
-          {localize('com_integrations_connect_description', { provider: providerLabel })}
+          {localize(descriptionKey as Parameters<typeof localize>[0], { provider: providerLabel })}
         </OGDialogDescription>
 
         <div className="mt-4 flex items-center gap-2">
@@ -56,7 +57,7 @@ export function ConnectProviderPrompt({
                 {localize('com_ui_loading')}
               </>
             ) : (
-              localize('com_integrations_connect_button')
+              localize(buttonKey as Parameters<typeof localize>[0])
             )}
           </Button>
         </div>

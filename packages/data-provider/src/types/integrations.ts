@@ -97,3 +97,11 @@ export interface IntegrationAttachedFile {
 export interface IntegrationFilesDownloadResponse {
   files: IntegrationAttachedFile[];
 }
+
+export function isIntegrationConnected(status: IntegrationConnectionStatus): boolean {
+  return status === 'connected';
+}
+
+export function needsIntegrationReconnect(status: IntegrationConnectionStatus): boolean {
+  return status === 'expired' || status === 'revoked';
+}

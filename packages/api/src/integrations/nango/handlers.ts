@@ -182,6 +182,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       return res.status(200).json({ token });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to get integration token';
+      if (message === 'Integration reconnect required') {
+        return res.status(401).json({ error: message });
+      }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }
@@ -249,6 +252,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       return res.status(200).json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to search files';
+      if (message === 'Integration reconnect required') {
+        return res.status(401).json({ error: message });
+      }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }
@@ -293,6 +299,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       return res.status(200).json({ files });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to download files';
+      if (message === 'Integration reconnect required') {
+        return res.status(401).json({ error: message });
+      }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }
@@ -332,6 +341,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       return res.status(200).json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to search messages';
+      if (message === 'Integration reconnect required') {
+        return res.status(401).json({ error: message });
+      }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }
@@ -376,6 +388,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       return res.status(200).json({ files });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to attach messages';
+      if (message === 'Integration reconnect required') {
+        return res.status(401).json({ error: message });
+      }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }
@@ -419,6 +434,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       return res.status(200).json(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to list events';
+      if (message === 'Integration reconnect required') {
+        return res.status(401).json({ error: message });
+      }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }
@@ -464,6 +482,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       return res.status(200).json({ files });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to attach events';
+      if (message === 'Integration reconnect required') {
+        return res.status(401).json({ error: message });
+      }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }

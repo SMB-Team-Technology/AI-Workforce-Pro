@@ -5,12 +5,15 @@ import { useGoogleDriveFilesQuery } from '~/data-provider';
 import { useDebounce, useLocalize } from '~/hooks';
 import { IntegrationPickerDialogShell } from './IntegrationPickerDialogShell';
 
+import { isIntegrationReconnectApiError } from '~/utils/integrationReconnect';
+
 interface GoogleDrivePickerDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onFilesSelected: (files: GoogleDriveFileSummary[]) => void;
   isAttaching?: boolean;
   maxSelectionCount?: number;
+  onReconnect?: () => void;
 }
 
 export function GoogleDrivePickerDialog({
@@ -19,6 +22,7 @@ export function GoogleDrivePickerDialog({
   onFilesSelected,
   isAttaching = false,
   maxSelectionCount,
+  onReconnect,
 }: GoogleDrivePickerDialogProps) {
   const localize = useLocalize();
   const [search, setSearch] = useState('');
@@ -36,7 +40,7 @@ export function GoogleDrivePickerDialog({
     }
   }, [isOpen]);
 
-  const { data, isLoading, isFetching } = useGoogleDriveFilesQuery({
+  const { data, isLoading, isFetching, isError, error } = useGoogleDriveFilesQuery({
     query: debouncedSearch || undefined,
     pageToken,
     pageSize: 20,
@@ -91,6 +95,8 @@ export function GoogleDrivePickerDialog({
     onFilesSelected(selectedFiles);
   };
 
+  const showReconnectError = isError && isIntegrationReconnectApiError(error);
+
   return (
     <IntegrationPickerDialogShell
       isOpen={isOpen}
@@ -105,6 +111,8 @@ export function GoogleDrivePickerDialog({
       }}
       isLoading={isLoading || (isFetching && files.length === 0)}
       isAttaching={isAttaching}
+      isError={showReconnectError}
+      onReconnect={onReconnect}
       selectedCount={selectedIds.size}
       maxSelectionCount={maxSelectionCount}
       onAttach={handleAttach}

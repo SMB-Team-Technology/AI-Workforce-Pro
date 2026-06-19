@@ -322,42 +322,56 @@ export function createNangoService(deps: NangoServiceDeps) {
     }
 
     const nango = getClient();
-    const nangoConnection = await nango.getConnection(
-      provider.nangoIntegrationId,
-      connection.connectionId,
-    );
+    try {
+      const nangoConnection = await nango.getConnection(
+        provider.nangoIntegrationId,
+        connection.connectionId,
+      );
 
-    const credentials = nangoConnection.credentials as
-      | {
-          access_token?: string;
-          expires_at?: string | Date;
-          raw?: { token_type?: string };
-        }
-      | undefined;
-    const accessToken =
-      typeof credentials?.access_token === 'string' ? credentials.access_token : undefined;
+      const credentials = nangoConnection.credentials as
+        | {
+            access_token?: string;
+            expires_at?: string | Date;
+            raw?: { token_type?: string };
+          }
+        | undefined;
+      const accessToken =
+        typeof credentials?.access_token === 'string' ? credentials.access_token : undefined;
 
-    if (!accessToken || accessToken.length === 0) {
-      throw new Error('Failed to resolve integration access token');
+      if (!accessToken || accessToken.length === 0) {
+        throw new Error('Failed to resolve integration access token');
+      }
+
+      const rawTokenType = credentials?.raw?.token_type;
+      const tokenType =
+        typeof rawTokenType === 'string' && rawTokenType.length > 0 ? rawTokenType : 'Bearer';
+
+      const rawExpiresAt = credentials?.expires_at;
+      const expiresAt =
+        rawExpiresAt instanceof Date
+          ? rawExpiresAt.toISOString()
+          : typeof rawExpiresAt === 'string'
+            ? rawExpiresAt
+            : undefined;
+
+      return {
+        accessToken,
+        expiresAt,
+        tokenType,
+      };
+    } catch (error) {
+      if (isNangoNotFoundError(error)) {
+        await upsertNangoConnection({
+          userId,
+          tenantId: user.tenantId?.trim() || undefined,
+          providerKey: provider.key,
+          nangoIntegrationId: provider.nangoIntegrationId,
+          connectionId: connection.connectionId,
+          status: 'expired',
+        });
+      }
+      throw new Error('Integration reconnect required');
     }
-
-    const rawTokenType = credentials?.raw?.token_type;
-    const tokenType =
-      typeof rawTokenType === 'string' && rawTokenType.length > 0 ? rawTokenType : 'Bearer';
-
-    const rawExpiresAt = credentials?.expires_at;
-    const expiresAt =
-      rawExpiresAt instanceof Date
-        ? rawExpiresAt.toISOString()
-        : typeof rawExpiresAt === 'string'
-          ? rawExpiresAt
-          : undefined;
-
-    return {
-      accessToken,
-      expiresAt,
-      tokenType,
-    };
   }
 
   return {

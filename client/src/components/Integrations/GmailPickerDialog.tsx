@@ -5,12 +5,15 @@ import { useGmailMessagesQuery } from '~/data-provider';
 import { useDebounce, useLocalize } from '~/hooks';
 import { IntegrationPickerDialogShell } from './IntegrationPickerDialogShell';
 
+import { isIntegrationReconnectApiError } from '~/utils/integrationReconnect';
+
 interface GmailPickerDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onMessagesSelected: (messages: GmailMessageSummary[]) => void;
   isAttaching?: boolean;
   maxSelectionCount?: number;
+  onReconnect?: () => void;
 }
 
 export function GmailPickerDialog({
@@ -19,6 +22,7 @@ export function GmailPickerDialog({
   onMessagesSelected,
   isAttaching = false,
   maxSelectionCount,
+  onReconnect,
 }: GmailPickerDialogProps) {
   const localize = useLocalize();
   const [search, setSearch] = useState('');
@@ -36,7 +40,7 @@ export function GmailPickerDialog({
     }
   }, [isOpen]);
 
-  const { data, isLoading, isFetching } = useGmailMessagesQuery({
+  const { data, isLoading, isFetching, isError, error } = useGmailMessagesQuery({
     query: debouncedSearch || undefined,
     pageToken,
     pageSize: 15,
@@ -91,6 +95,8 @@ export function GmailPickerDialog({
     onMessagesSelected(selectedMessages);
   };
 
+  const showReconnectError = isError && isIntegrationReconnectApiError(error);
+
   return (
     <IntegrationPickerDialogShell
       isOpen={isOpen}
@@ -105,6 +111,8 @@ export function GmailPickerDialog({
       }}
       isLoading={isLoading || (isFetching && messages.length === 0)}
       isAttaching={isAttaching}
+      isError={showReconnectError}
+      onReconnect={onReconnect}
       selectedCount={selectedIds.size}
       maxSelectionCount={maxSelectionCount}
       onAttach={handleAttach}
