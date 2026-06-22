@@ -10,6 +10,9 @@ export const INTEGRATION_PICKER_PROVIDER_KEYS = new Set<IntegrationProviderKey>(
   'google-mail',
   'google-calendar',
   'dropbox',
+  'microsoft',
+  'box',
+  'clio',
 ]);
 
 export const INTEGRATION_ATTACH_MENU: Partial<

@@ -8,7 +8,23 @@ import {
   getGoogleCalendarEvent,
   listGoogleCalendarEvents,
 } from '../googleCalendar/calendarApi';
+import { downloadBoxFile, searchBoxFiles } from '../box/boxApi';
+import { downloadClioDocument, searchClioDocuments } from '../clio/clioApi';
 import { downloadDropboxFile, searchDropboxFiles } from '../dropbox/dropboxApi';
+import {
+  formatOutlookCalendarEventAsText,
+  getOutlookCalendarEvent,
+  listOutlookCalendarEvents,
+} from '../microsoft/outlookCalendarApi';
+import {
+  downloadMicrosoftOneDriveFile,
+  ONEDRIVE_NOT_PROVISIONED_ERROR,
+  searchMicrosoftOneDriveFiles,
+} from '../microsoft/oneDriveApi';
+import {
+  getOutlookMailMessageAsText,
+  searchOutlookMailMessages,
+} from '../microsoft/outlookMailApi';
 import {
   buildGoogleDriveFullTextQuery,
   downloadGoogleDriveFile,
@@ -28,12 +44,37 @@ import type { NangoService } from './service';
 const INTEGRATION_FILE_SEARCH_PROVIDERS = new Set<IntegrationProviderKey>([
   'google-drive',
   'dropbox',
+  'microsoft',
+  'box',
+  'clio',
+]);
+
+const INTEGRATION_MESSAGE_PROVIDERS = new Set<IntegrationProviderKey>(['google-mail', 'microsoft']);
+
+const INTEGRATION_EVENT_PROVIDERS = new Set<IntegrationProviderKey>([
+  'google-calendar',
+  'microsoft',
 ]);
 
 function isIntegrationFileSearchProviderKey(
   value: string,
-): value is Extract<IntegrationProviderKey, 'google-drive' | 'dropbox'> {
+): value is Extract<
+  IntegrationProviderKey,
+  'google-drive' | 'dropbox' | 'microsoft' | 'box' | 'clio'
+> {
   return INTEGRATION_FILE_SEARCH_PROVIDERS.has(value as IntegrationProviderKey);
+}
+
+function isIntegrationMessageProviderKey(
+  value: string,
+): value is Extract<IntegrationProviderKey, 'google-mail' | 'microsoft'> {
+  return INTEGRATION_MESSAGE_PROVIDERS.has(value as IntegrationProviderKey);
+}
+
+function isIntegrationEventProviderKey(
+  value: string,
+): value is Extract<IntegrationProviderKey, 'google-calendar' | 'microsoft'> {
+  return INTEGRATION_EVENT_PROVIDERS.has(value as IntegrationProviderKey);
 }
 
 function getRequestUser(req: ServerRequest): IUser | undefined {
@@ -272,7 +313,34 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
         return res.status(200).json(result);
       }
 
-      const result = await searchDropboxFiles(token.accessToken, {
+      if (providerKey === 'dropbox') {
+        const result = await searchDropboxFiles(token.accessToken, {
+          query,
+          pageSize,
+          pageToken,
+        });
+        return res.status(200).json(result);
+      }
+
+      if (providerKey === 'microsoft') {
+        const result = await searchMicrosoftOneDriveFiles(token.accessToken, {
+          query,
+          pageSize,
+          pageToken,
+        });
+        return res.status(200).json(result);
+      }
+
+      if (providerKey === 'box') {
+        const result = await searchBoxFiles(token.accessToken, {
+          query,
+          pageSize,
+          pageToken,
+        });
+        return res.status(200).json(result);
+      }
+
+      const result = await searchClioDocuments(token.accessToken, {
         query,
         pageSize,
         pageToken,
@@ -286,6 +354,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       }
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
+      }
+      if (message === ONEDRIVE_NOT_PROVISIONED_ERROR) {
+        return res.status(503).json({ error: message, code: 'onedrive_not_provisioned' });
       }
       logger.error('[integrations] searchProviderFiles error:', error);
       return res.status(500).json({ error: 'Failed to search files' });
@@ -319,7 +390,13 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
           const downloaded =
             providerKey === 'google-drive'
               ? await downloadGoogleDriveFile(token.accessToken, file)
-              : await downloadDropboxFile(token.accessToken, file);
+              : providerKey === 'dropbox'
+                ? await downloadDropboxFile(token.accessToken, file)
+                : providerKey === 'microsoft'
+                  ? await downloadMicrosoftOneDriveFile(token.accessToken, file)
+                  : providerKey === 'box'
+                    ? await downloadBoxFile(token.accessToken, file)
+                    : await downloadClioDocument(token.accessToken, file);
           return {
             fileName: downloaded.fileName,
             mimeType: downloaded.mimeType,
@@ -337,6 +414,9 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       if (message === 'Integration is not connected') {
         return res.status(404).json({ error: message });
       }
+      if (message === ONEDRIVE_NOT_PROVISIONED_ERROR) {
+        return res.status(503).json({ error: message, code: 'onedrive_not_provisioned' });
+      }
       logger.error('[integrations] downloadProviderFiles error:', error);
       return res.status(500).json({ error: 'Failed to download files' });
     }
@@ -350,7 +430,7 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       }
 
       const { providerKey } = req.params as { providerKey: string };
-      if (providerKey !== 'google-mail') {
+      if (!isIntegrationMessageProviderKey(providerKey)) {
         return res.status(400).json({ error: 'Message search is not supported for this provider' });
       }
 
@@ -364,11 +444,18 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       const pageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
 
       const token = await nangoService.getProviderAccessToken(user, providerKey);
-      const result = await searchGmailMessages(token.accessToken, {
-        query,
-        pageSize,
-        pageToken,
-      });
+      const result =
+        providerKey === 'microsoft'
+          ? await searchOutlookMailMessages(token.accessToken, {
+              query,
+              pageSize,
+              pageToken,
+            })
+          : await searchGmailMessages(token.accessToken, {
+              query,
+              pageSize,
+              pageToken,
+            });
 
       return res.status(200).json(result);
     } catch (error) {
@@ -392,7 +479,7 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       }
 
       const { providerKey } = req.params as { providerKey: string };
-      if (providerKey !== 'google-mail') {
+      if (!isIntegrationMessageProviderKey(providerKey)) {
         return res.status(400).json({ error: 'Message attach is not supported for this provider' });
       }
 
@@ -408,7 +495,10 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       const token = await nangoService.getProviderAccessToken(user, providerKey);
       const files = await Promise.all(
         body.messageIds.map(async (messageId) => {
-          const message = await getGmailMessageAsText(token.accessToken, messageId);
+          const message =
+            providerKey === 'microsoft'
+              ? await getOutlookMailMessageAsText(token.accessToken, messageId)
+              : await getGmailMessageAsText(token.accessToken, messageId);
           return {
             fileName: message.fileName,
             mimeType: 'text/plain',
@@ -439,7 +529,7 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       }
 
       const { providerKey } = req.params as { providerKey: string };
-      if (providerKey !== 'google-calendar') {
+      if (!isIntegrationEventProviderKey(providerKey)) {
         return res.status(400).json({ error: 'Event listing is not supported for this provider' });
       }
 
@@ -455,13 +545,22 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       const pageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 10;
 
       const token = await nangoService.getProviderAccessToken(user, providerKey);
-      const result = await listGoogleCalendarEvents(token.accessToken, {
-        query,
-        timeMin,
-        timeMax,
-        pageSize,
-        pageToken,
-      });
+      const result =
+        providerKey === 'microsoft'
+          ? await listOutlookCalendarEvents(token.accessToken, {
+              query,
+              timeMin,
+              timeMax,
+              pageSize,
+              pageToken,
+            })
+          : await listGoogleCalendarEvents(token.accessToken, {
+              query,
+              timeMin,
+              timeMax,
+              pageSize,
+              pageToken,
+            });
 
       return res.status(200).json(result);
     } catch (error) {
@@ -485,7 +584,7 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       }
 
       const { providerKey } = req.params as { providerKey: string };
-      if (providerKey !== 'google-calendar') {
+      if (!isIntegrationEventProviderKey(providerKey)) {
         return res.status(400).json({ error: 'Event attach is not supported for this provider' });
       }
 
@@ -501,6 +600,16 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       const token = await nangoService.getProviderAccessToken(user, providerKey);
       const files = await Promise.all(
         body.eventIds.map(async (eventId) => {
+          if (providerKey === 'microsoft') {
+            const event = await getOutlookCalendarEvent(token.accessToken, eventId);
+            const formatted = formatOutlookCalendarEventAsText(event);
+            return {
+              fileName: formatted.fileName,
+              mimeType: 'text/plain',
+              contentBase64: Buffer.from(formatted.content, 'utf-8').toString('base64'),
+            };
+          }
+
           const event = await getGoogleCalendarEvent(token.accessToken, eventId);
           const formatted = formatGoogleCalendarEventAsText(event);
           return {

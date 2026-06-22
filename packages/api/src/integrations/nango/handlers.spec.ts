@@ -4,7 +4,12 @@ import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
 import type { IntegrationProviderStatus } from '../providers';
 import * as driveApi from '../googleDrive/driveApi';
+import * as boxApi from '../box/boxApi';
+import * as clioApi from '../clio/clioApi';
 import * as dropboxApi from '../dropbox/dropboxApi';
+import * as oneDriveApi from '../microsoft/oneDriveApi';
+import * as outlookMailApi from '../microsoft/outlookMailApi';
+import * as outlookCalendarApi from '../microsoft/outlookCalendarApi';
 import { createAdminIntegrationHandlers, createIntegrationHandlers } from './handlers';
 
 jest.mock('@librechat/data-schemas', () => ({
@@ -219,6 +224,152 @@ describe('createIntegrationHandlers', () => {
       files: [{ id: 'id:file-1', name: 'contract.pdf', mimeType: 'application/pdf' }],
     });
     expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'dropbox');
+  });
+
+  it('searches Box files for connected users', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'box' },
+    });
+    req.query = { query: 'contract', pageSize: '5' };
+
+    jest.spyOn(boxApi, 'searchBoxFiles').mockResolvedValue({
+      files: [{ id: '123', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+
+    await handlers.searchProviderFiles(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      files: [{ id: '123', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'box');
+  });
+
+  it('searches Clio documents for connected users', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'clio' },
+    });
+    req.query = { query: 'contract', pageSize: '5' };
+
+    jest.spyOn(clioApi, 'searchClioDocuments').mockResolvedValue({
+      files: [{ id: '456', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+
+    await handlers.searchProviderFiles(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      files: [{ id: '456', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'clio');
+  });
+
+  it('searches Microsoft OneDrive files for connected users', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'microsoft' },
+    });
+    req.query = { query: 'contract', pageSize: '5' };
+
+    jest.spyOn(oneDriveApi, 'searchMicrosoftOneDriveFiles').mockResolvedValue({
+      files: [{ id: 'item-1', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+
+    await handlers.searchProviderFiles(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      files: [{ id: 'item-1', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'microsoft');
+  });
+
+  it('searches Outlook mail messages for connected Microsoft users', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'microsoft' },
+    });
+    req.query = { query: 'invoice', pageSize: '5' };
+
+    jest.spyOn(outlookMailApi, 'searchOutlookMailMessages').mockResolvedValue({
+      messages: [
+        {
+          id: 'msg-1',
+          threadId: 'conv-1',
+          subject: 'Invoice',
+          from: 'billing@example.com',
+          date: '2026-06-01T12:00:00Z',
+          snippet: 'Your invoice is ready.',
+        },
+      ],
+    });
+
+    await handlers.searchProviderMessages(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      messages: [
+        expect.objectContaining({
+          id: 'msg-1',
+          subject: 'Invoice',
+        }),
+      ],
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'microsoft');
+  });
+
+  it('lists Outlook calendar events for connected Microsoft users', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'microsoft' },
+    });
+    req.query = { query: 'sync', pageSize: '5' };
+
+    jest.spyOn(outlookCalendarApi, 'listOutlookCalendarEvents').mockResolvedValue({
+      events: [
+        {
+          id: 'event-1',
+          summary: 'Team sync',
+          start: '2026-06-02T10:00:00Z',
+          end: '2026-06-02T11:00:00Z',
+        },
+      ],
+    });
+
+    await handlers.listProviderEvents(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      events: [
+        expect.objectContaining({
+          id: 'event-1',
+          summary: 'Team sync',
+        }),
+      ],
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'microsoft');
   });
 });
 

@@ -32,6 +32,24 @@ jest.mock('~/hooks/Files/useDropboxFileHandling', () => ({
   useDropboxFileHandlingNoChatContext: jest.fn(),
 }));
 
+jest.mock('~/hooks/Files/useBoxFileHandling', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  useBoxFileHandlingNoChatContext: jest.fn(),
+}));
+
+jest.mock('~/hooks/Files/useClioFileHandling', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  useClioFileHandlingNoChatContext: jest.fn(),
+}));
+
+jest.mock('~/hooks/Files/useMicrosoftOneDriveFileHandling', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  useMicrosoftOneDriveFileHandlingNoChatContext: jest.fn(),
+}));
+
 jest.mock('~/hooks/Files/useIntegrationTextAttachHandling', () => ({
   __esModule: true,
   default: jest.fn(),
@@ -54,6 +72,11 @@ jest.mock('~/components/Integrations', () => {
     ConnectProviderPrompt: () => null,
     GoogleDrivePickerDialog: () => null,
     DropboxPickerDialog: () => null,
+    BoxPickerDialog: () => null,
+    ClioPickerDialog: () => null,
+    MicrosoftOneDrivePickerDialog: () => null,
+    MicrosoftOutlookMailPickerDialog: () => null,
+    MicrosoftOutlookCalendarPickerDialog: () => null,
     GmailPickerDialog: () => null,
     GoogleCalendarPickerDialog: () => null,
     INTEGRATION_ATTACH_MENU: {
@@ -78,7 +101,9 @@ jest.mock('~/components/Integrations', () => {
 jest.mock('@librechat/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react');
+  const actual = jest.requireActual('@librechat/client');
   return {
+    ...actual,
     FileUpload: R.forwardRef((props, ref) =>
       R.createElement(
         'div',
@@ -161,6 +186,15 @@ const mockUseGoogleDriveFileHandlingNoChatContext = jest.requireMock(
 const mockUseDropboxFileHandlingNoChatContext = jest.requireMock(
   '~/hooks/Files/useDropboxFileHandling',
 ).useDropboxFileHandlingNoChatContext;
+const mockUseBoxFileHandlingNoChatContext = jest.requireMock(
+  '~/hooks/Files/useBoxFileHandling',
+).useBoxFileHandlingNoChatContext;
+const mockUseClioFileHandlingNoChatContext = jest.requireMock(
+  '~/hooks/Files/useClioFileHandling',
+).useClioFileHandlingNoChatContext;
+const mockUseMicrosoftOneDriveFileHandlingNoChatContext = jest.requireMock(
+  '~/hooks/Files/useMicrosoftOneDriveFileHandling',
+).useMicrosoftOneDriveFileHandlingNoChatContext;
 const mockUseIntegrationTextAttachHandlingNoChatContext = jest.requireMock(
   '~/hooks/Files/useIntegrationTextAttachHandling',
 ).useIntegrationTextAttachHandlingNoChatContext;
@@ -208,9 +242,26 @@ function setupMocks(overrides: { provider?: string } = {}) {
     isProcessing: false,
     error: null,
   });
+  mockUseBoxFileHandlingNoChatContext.mockReturnValue({
+    handleBoxFiles: jest.fn(),
+    isProcessing: false,
+    error: null,
+  });
+  mockUseClioFileHandlingNoChatContext.mockReturnValue({
+    handleClioFiles: jest.fn(),
+    isProcessing: false,
+    error: null,
+  });
+  mockUseMicrosoftOneDriveFileHandlingNoChatContext.mockReturnValue({
+    handleMicrosoftOneDriveFiles: jest.fn(),
+    isProcessing: false,
+    error: null,
+  });
   mockUseIntegrationTextAttachHandlingNoChatContext.mockReturnValue({
     attachGmailMessages: jest.fn(),
     attachCalendarEvents: jest.fn(),
+    attachOutlookMailMessages: jest.fn(),
+    attachOutlookCalendarEvents: jest.fn(),
     isProcessing: false,
     error: null,
   });

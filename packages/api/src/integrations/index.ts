@@ -49,6 +49,27 @@ export type {
   DropboxSearchOptions,
   DropboxSearchResult,
 } from './dropbox/dropboxApi';
+export { downloadBoxFile, searchBoxFiles } from './box/boxApi';
+export type { BoxFileSummary, BoxSearchOptions, BoxSearchResult } from './box/boxApi';
+export { downloadClioDocument, searchClioDocuments } from './clio/clioApi';
+export type { ClioDocumentSummary, ClioSearchOptions, ClioSearchResult } from './clio/clioApi';
+export {
+  downloadMicrosoftOneDriveFile,
+  searchMicrosoftOneDriveFiles,
+} from './microsoft/oneDriveApi';
+export type {
+  OneDriveFileSummary,
+  OneDriveSearchOptions,
+  OneDriveSearchResult,
+} from './microsoft/oneDriveApi';
+export {
+  formatOutlookCalendarEventAsText,
+  getOutlookCalendarEvent,
+  listOutlookCalendarEvents,
+} from './microsoft/outlookCalendarApi';
+export type { OutlookCalendarListOptions } from './microsoft/outlookCalendarApi';
+export { getOutlookMailMessageAsText, searchOutlookMailMessages } from './microsoft/outlookMailApi';
+export type { OutlookMailSearchOptions } from './microsoft/outlookMailApi';
 export { getGmailMessageAsText, searchGmailMessages } from './googleMail/mailApi';
 export type {
   GmailMessageSummary,

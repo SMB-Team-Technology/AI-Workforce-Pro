@@ -1,10 +1,10 @@
 # Nango OAuth Integrations — Architecture & Implementation Plan
 
-**Status:** Connect UI migration shipped on branch  
-**Feature branch (both repos):** `feat/nango-oauth-integrations`  
+**Status:** Connect UI + file/mail/calendar attach pickers (Google, Microsoft, Dropbox, Box, Clio)  
+**Feature branch (both repos):** `feat/nango-integration-providers`  
 **Last updated:** 2026-06-16
 
-This document is the single source of truth for integrating external services (Google Drive, Gmail, Microsoft, Dropbox, Box, Clio) via [Nango](https://nango.dev) in LibreChat and the Admin Panel.
+This document is the single source of truth for integrating external services (Google Drive, Gmail, Google Calendar, Microsoft, Dropbox, Box, Clio) via [Nango](https://nango.dev) in LibreChat and the Admin Panel.
 
 ---
 
@@ -14,19 +14,20 @@ This document is the single source of truth for integrating external services (G
 2. [Business decisions](#business-decisions)
 3. [SDK versions & deployment](#sdk-versions--deployment)
 4. [Current Nango setup](#current-nango-setup)
-5. [Architecture overview (Connect UI)](#architecture-overview-connect-ui)
-6. [Smooth logins (UX)](#smooth-logins-ux)
-7. [Data model](#data-model)
-8. [Provider registry](#provider-registry)
-9. [Environment variables](#environment-variables)
-10. [API endpoints](#api-endpoints)
-11. [Repository layout](#repository-layout)
-12. [Implementation phases (PRs)](#implementation-phases-prs)
-13. [Adding a new provider](#adding-a-new-provider)
-14. [Security](#security)
-15. [Testing](#testing)
-16. [Pending work](#pending-work)
-17. [Out of scope](#out-of-scope)
+5. [Attach capabilities by provider](#attach-capabilities-by-provider)
+6. [Architecture overview (Connect UI)](#architecture-overview-connect-ui)
+7. [Smooth logins (UX)](#smooth-logins-ux)
+8. [Data model](#data-model)
+9. [Provider registry](#provider-registry)
+10. [Environment variables](#environment-variables)
+11. [API endpoints](#api-endpoints)
+12. [Repository layout](#repository-layout)
+13. [Implementation phases (PRs)](#implementation-phases-prs)
+14. [Adding a new provider](#adding-a-new-provider)
+15. [Security](#security)
+16. [Testing](#testing)
+17. [Pending work](#pending-work)
+18. [Out of scope](#out-of-scope)
 
 ---
 
@@ -90,11 +91,15 @@ Self-hosted Nango at **`https://nango.smbteam.com` must run 0.70.7** with Connec
 
 ## Current Nango setup
 
-| Integration ID (Nango) | Provider | Registry `enabled` | Notes |
-|------------------------|----------|-------------------|--------|
-| `google-drive` | Google Drive | Yes | Scopes: `drive.readonly`, `drive.file` |
-| `google-mail` | Gmail | Yes | Match Nango dashboard ID exactly |
-| `google-calendar` | Google Calendar | Yes | Match Nango dashboard ID exactly |
+| Integration ID (Nango) | Provider | Registry `enabled` | Attach in chat |
+|------------------------|----------|-------------------|----------------|
+| `google-drive` | Google Drive | Yes | Files (picker) |
+| `google-mail` | Gmail | Yes | Messages → `.txt` context |
+| `google-calendar` | Google Calendar | Yes | Events → `.txt` context |
+| `microsoft` | Microsoft 365 | Yes | OneDrive files + Outlook Mail + Outlook Calendar |
+| `dropbox` | Dropbox | Yes | Files (picker) |
+| `box` | Box | Yes | Files (picker) |
+| `clio` | Clio | Yes | Documents (picker) |
 
 | Item | Value |
 |------|--------|
@@ -104,12 +109,71 @@ Self-hosted Nango at **`https://nango.smbteam.com` must run 0.70.7** with Connec
 | Connect UI | Hosted on Nango (`NANGO_PUBLIC_CONNECT_URL` or same as `NANGO_HOST`) |
 | Webhook | `POST https://<librechat>/api/webhooks/nango` |
 
-**Planned later** (configure in Nango, then enable in registry):
+### Microsoft Graph scopes (single `microsoft` connection)
 
-- Microsoft
-- Dropbox
-- Box
-- Clio
+One Nango integration covers OneDrive, Outlook Mail, and Outlook Calendar. Typical Azure app scopes:
+
+| Scope | Used for |
+|-------|----------|
+| `User.Read` | Profile |
+| `offline_access` | Refresh tokens |
+| `Files.Read` / `Files.ReadWrite` | OneDrive file picker |
+| `Mail.Read` / `Mail.Send` | Outlook mail search + attach (read is sufficient for attach) |
+| `Calendars.Read` / `Calendars.ReadWrite` | Outlook calendar list + attach (read is sufficient for attach) |
+
+### Box scopes (Nango integration `box`)
+
+| Scope | Used for |
+|-------|----------|
+| `root_readonly` | List, search, and download files in the user's Box account |
+
+Configure in the Box Developer Console and Nango dashboard OAuth settings.
+
+### Clio scopes (Nango integration `clio`)
+
+| Scope | Used for |
+|-------|----------|
+| `Documents (read)` | List, search, and download documents in the user's Clio account |
+
+MVP covers **documents only** — no mail or calendar attach.
+
+---
+
+## Attach capabilities by provider
+
+End users connect via the chat **attach menu** (clip icon). When connected, providers expose pickers that download or summarize content server-side and attach it to the conversation.
+
+| Provider key | OAuth (Nango) | Files | Mail | Calendar | Client pickers |
+|--------------|---------------|-------|------|----------|----------------|
+| `google-drive` | `google-drive` | Yes | — | — | `GoogleDrivePickerDialog` |
+| `google-mail` | `google-mail` | — | Yes | — | `GmailPickerDialog` |
+| `google-calendar` | `google-calendar` | — | — | Yes | `GoogleCalendarPickerDialog` |
+| `microsoft` | `microsoft` | Yes (OneDrive) | Yes (Outlook) | Yes (Outlook) | `MicrosoftOneDrivePickerDialog`, `MicrosoftOutlookMailPickerDialog`, `MicrosoftOutlookCalendarPickerDialog` |
+| `dropbox` | `dropbox` | Yes | — | — | `DropboxPickerDialog` |
+| `box` | `box` | Yes | — | — | `BoxPickerDialog` |
+| `clio` | `clio` | Yes | — | — | `ClioPickerDialog` |
+
+**Microsoft UX when connected:** the attach menu shows **three separate items** (not one submenu):
+
+1. **From OneDrive** — file-type submenu (image, document, …) → OneDrive picker  
+2. **From Outlook Mail** — message picker → attaches as plain-text context  
+3. **From Outlook Calendar** — event picker → attaches as plain-text context  
+
+**Mail and calendar attach** (Google and Microsoft) always use `tool_resource: context` and produce `.txt` summaries on the server.
+
+**File attach** uses the same pipeline as local uploads after the server downloads bytes from the provider API (with MIME type inference when providers return `application/octet-stream`).
+
+### Backend API modules
+
+| Provider | Files | Mail | Calendar |
+|----------|-------|------|----------|
+| Google | `googleDrive/driveApi.ts` | `googleMail/mailApi.ts` | `googleCalendar/calendarApi.ts` |
+| Microsoft | `microsoft/oneDriveApi.ts` | `microsoft/outlookMailApi.ts` | `microsoft/outlookCalendarApi.ts` |
+| Dropbox | `dropbox/dropboxApi.ts` | — | — |
+| Box | `box/boxApi.ts` | — | — |
+| Clio | `clio/clioApi.ts` | — | — |
+
+Handlers in `nango/handlers.ts` route by `providerKey`. Message and event endpoints accept `google-mail` / `google-calendar` **or** `microsoft` (same Nango connection for all Microsoft features).
 
 ---
 
@@ -164,7 +228,7 @@ sequenceDiagram
 
 | Actor | Where | Action |
 |-------|-------|--------|
-| Employee | LibreChat client | Connect **their** account via attach menu (Drive/Gmail/Calendar) |
+| Employee | LibreChat client | Connect **their** account via attach menu (Drive, Gmail, Calendar, Microsoft, Dropbox, …) |
 | Tenant admin | Admin Panel | **Read-only audit:** own status on `/integrations`; per-user popup in Users / Tenant admins |
 | Platform admin | Admin Panel | Same audit capabilities; scoped by tenant when applicable |
 | Dev/platform | Nango dashboard | OAuth apps, scopes, webhooks, Connect UI settings |
@@ -176,12 +240,13 @@ sequenceDiagram
 | Requirement | Implementation |
 |-------------|----------------|
 | No custom OAuth forms in LibreChat | Nango Connect UI |
-| Short path per provider | One integration ID per provider (`google-drive`, etc.) |
+| Short path per provider | One integration ID per provider (`google-drive`, `microsoft`, etc.) |
 | No unnecessary re-login | Nango refresh; store only `connectionId` locally |
 | Reconnect | Same Connect UI flow; `createReconnectSession` when Mongo has a prior `connectionId` |
-| Connect in context | CTA when agent/tool needs Drive — not only a settings page |
-| Drive file destination | When connected, attach menu **From Google Drive** expands like SharePoint |
-| Gmail / Calendar attach | Single menu item → attaches as `tool_resource: context` (`.txt` summaries) |
+| Connect in context | CTA when attach menu needs a provider — not only a settings page |
+| Drive / Dropbox / OneDrive file destination | When connected, **From …** expands with file-type submenu (like SharePoint) |
+| Gmail / Calendar / Outlook attach | Menu item → picker → attaches as `tool_resource: context` (`.txt` summaries) |
+| Microsoft multi-surface | One OAuth connection; three attach menu entries when connected |
 
 **Anti-patterns (avoid):**
 
@@ -231,15 +296,15 @@ Connect sessions include tags for webhook/sync resolution:
 
 Location: `packages/api/src/integrations/providers.ts`
 
-| Registry key | Nango integration ID | Enabled in code |
-|--------------|----------------------|-----------------|
-| `google-drive` | `google-drive` | `true` |
-| `google-mail` | `google-mail` | `true` |
-| `google-calendar` | `google-calendar` | `true` |
-| `microsoft` | `microsoft` | `false` |
-| `dropbox` | `dropbox` | `false` |
-| `box` | `box` | `false` |
-| `clio` | `clio` | `false` |
+| Registry key | Nango integration ID | Enabled in code | Attach pickers |
+|--------------|----------------------|-----------------|----------------|
+| `google-drive` | `google-drive` | `true` | Files |
+| `google-mail` | `google-mail` | `true` | Mail |
+| `google-calendar` | `google-calendar` | `true` | Calendar |
+| `microsoft` | `microsoft` | `true` | OneDrive + Outlook Mail + Outlook Calendar |
+| `dropbox` | `dropbox` | `true` | Files |
+| `box` | `box` | `true` | Files |
+| `clio` | `clio` | `true` | Documents |
 
 ---
 
@@ -298,6 +363,27 @@ Base path: `/api/integrations`
 | `POST` | `/:providerKey/sync` | Resolve connection in Nango + upsert Mongo after OAuth |
 | `DELETE` | `/:providerKey` | Disconnect (Nango + Mongo) |
 | `GET` | `/:providerKey/token` | Fresh access token — **server/agents only**, not browser |
+| `GET` | `/:providerKey/files` | Search/list files (`google-drive`, `dropbox`, `microsoft`, `box`, `clio`) |
+| `POST` | `/:providerKey/files/download` | Download selected files as base64 payloads |
+| `GET` | `/:providerKey/messages` | Search mail (`google-mail`, `microsoft`) |
+| `POST` | `/:providerKey/messages/attach` | Fetch messages as plain-text attachments |
+| `GET` | `/:providerKey/events` | List calendar events (`google-calendar`, `microsoft`) |
+| `POST` | `/:providerKey/events/attach` | Fetch events as plain-text attachments |
+
+**Query params (files/messages/events):** `query`, `pageToken`, `pageSize`; events also accept `timeMin`, `timeMax`.
+
+**Attach request bodies:**
+
+```json
+// POST .../messages/attach
+{ "messageIds": ["id1", "id2"] }
+
+// POST .../events/attach
+{ "eventIds": ["id1", "id2"] }
+
+// POST .../files/download
+{ "files": [{ "id": "...", "name": "...", "mimeType": "..." }] }
+```
 
 ### Admin (requires `access:admin` + capabilities)
 
@@ -335,10 +421,21 @@ packages/
 ├── api/src/integrations/
 │   ├── index.ts
 │   ├── providers.ts
+│   ├── types.ts
+│   ├── googleDrive/driveApi.ts
+│   ├── googleMail/mailApi.ts
+│   ├── googleCalendar/calendarApi.ts
+│   ├── dropbox/dropboxApi.ts
+│   ├── box/boxApi.ts
+│   ├── clio/clioApi.ts
+│   ├── microsoft/
+│   │   ├── oneDriveApi.ts
+│   │   ├── outlookMailApi.ts
+│   │   └── outlookCalendarApi.ts
 │   └── nango/
 │       ├── client.ts          # getNangoClient(), getNangoConnectUrl(), isNangoConfigured()
 │       ├── service.ts         # connect session, sync, webhook, disconnect, status, token
-│       ├── handlers.ts        # user + admin HTTP handlers
+│       ├── handlers.ts        # user + admin HTTP handlers + file/mail/event attach
 │       ├── webhook.ts         # payload parsing
 │       ├── webhookHandlers.ts # HMAC verify + route handler
 │       └── handlers.spec.ts
@@ -346,21 +443,52 @@ packages/
     └── schema/nangoConnection.ts
 
 api/server/routes/
-├── integrations.js
+├── integrations.js            # mounts attach routes under /api/integrations
 └── webhooks/nango.js
 ```
 
 ### Admin Panel (`AI-Workforce-Pro-Admin-Panel`)
 
-Read-only audit UI — see `AI-Workforce-Pro-Admin-Panel/docs/NANGO_INTEGRATIONS.md`.
+Read-only audit UI — no OAuth in the browser. See `AI-Workforce-Pro-Admin-Panel/docs/NANGO_INTEGRATIONS.md`.
+
+```
+src/
+├── server/integrations.ts
+├── components/integrations/
+│   ├── IntegrationsPage.tsx
+│   ├── UserIntegrationsDialog.tsx
+│   └── IntegrationProviderIcon.tsx
+└── routes/_app/integrations.tsx
+```
+
+All seven registry providers appear in the audit UI when enabled on the LibreChat backend.
 
 ### LibreChat client
 
 ```
 client/src/
-├── hooks/integrations/useNangoConnect.ts   # Connect UI flow
-├── data-provider/Integrations/mutations.ts # connect-session + sync
+├── hooks/integrations/useIntegrationConnectors.ts  # Connect UI flow per provider
+├── hooks/Files/
+│   ├── useGoogleDriveFileHandling.ts
+│   ├── useDropboxFileHandling.ts
+│   ├── useBoxFileHandling.ts
+│   ├── useClioFileHandling.ts
+│   ├── useMicrosoftOneDriveFileHandling.ts
+│   └── useIntegrationTextAttachHandling.ts       # Gmail, Calendar, Outlook mail/calendar
+├── data-provider/Integrations/
+│   ├── mutations.ts            # connect-session + sync
+│   └── attach.ts               # React Query hooks for pickers
 └── components/Integrations/
+    ├── attachMenu.ts           # menu labels + INTEGRATION_PICKER_PROVIDER_KEYS
+    ├── GoogleDrivePickerDialog.tsx
+    ├── GmailPickerDialog.tsx
+    ├── GoogleCalendarPickerDialog.tsx
+    ├── DropboxPickerDialog.tsx
+    ├── BoxPickerDialog.tsx
+    ├── ClioPickerDialog.tsx
+    ├── MicrosoftOneDrivePickerDialog.tsx
+    ├── MicrosoftOutlookMailPickerDialog.tsx
+    └── MicrosoftOutlookCalendarPickerDialog.tsx
 ```
 
 Dependency: `@nangohq/frontend@^0.70.7`
@@ -376,7 +504,11 @@ Dependency: `@nangohq/frontend@^0.70.7`
 | **PR-3** | Admin Panel | Read-only Integrations page, user audit dialogs | **Done** |
 | **PR-5** | Backend | Token endpoint + Google agent tools | **Done** |
 | **Connect UI migration** | Both | SDK 0.70.7, connect-session/sync, webhook | **Done** |
-| **PR-6** | Both | Enable Microsoft, Dropbox, Box, Clio | **Pending** |
+| **PR-6a** | Backend + client | Enable Microsoft, Dropbox, Box, Clio in registry | **Done** |
+| **PR-6b** | Backend + client | Dropbox file picker + MIME inference | **Done** |
+| **PR-6c** | Backend + client | Microsoft OneDrive + Outlook Mail + Outlook Calendar pickers | **Done** (branch; pending commit) |
+| **PR-6d** | Backend + client | Box file picker | **Done** |
+| **PR-6e** | Backend + client | Clio document picker | **Done** |
 | **PR-7** | Both | Reconnect UX polish | **Done** |
 
 ---
@@ -385,10 +517,16 @@ Dependency: `@nangohq/frontend@^0.70.7`
 
 1. Create/configure integration in **Nango dashboard** (OAuth app, scopes).
 2. Add entry to `INTEGRATION_PROVIDERS` in `providers.ts` with `enabled: true`.
-3. Add i18n keys + icon in Admin Panel and client locales.
-4. (If needed) wire agent/tool to call `/api/integrations/:providerKey/token`.
+3. Add i18n keys + icon in client `attachMenu.ts` and locales (EN/ES).
+4. If the provider exposes files, mail, or calendar:
+   - Add API module under `packages/api/src/integrations/<provider>/`.
+   - Extend `handlers.ts` search/download/attach branches.
+   - Add React Query hooks in `client/src/data-provider/Integrations/attach.ts`.
+   - Add picker dialog(s) and wire `AttachFileMenu.tsx`.
+   - Add `INTEGRATION_PICKER_PROVIDER_KEYS` entry when attach is ready.
+5. (If needed) wire agent/tool to call `/api/integrations/:providerKey/token`.
 
-No changes to connect-session / sync handler logic beyond the registry entry.
+Connect-session / sync handler logic is provider-agnostic beyond the registry entry.
 
 ---
 
@@ -402,6 +540,24 @@ No changes to connect-session / sync handler logic beyond the registry entry.
 
 ---
 
+## Troubleshooting
+
+### OneDrive picker: `itemNotFound` / 404
+
+**Symptom:** Log shows `Microsoft Graph API error (404): itemNotFound` when opening the OneDrive picker right after connecting Microsoft (common with **personal** `@outlook.com` accounts).
+
+**Cause:** Microsoft has not **provisioned** OneDrive for that account yet. Graph cannot create the drive via API alone; the user must open OneDrive in a browser at least once.
+
+**Fix (user):**
+
+1. Open [https://onedrive.live.com](https://onedrive.live.com) (or OneDrive for work: `https://<tenant>-my.sharepoint.com`) and sign in with the **same account** used in LibreChat.
+2. Wait for the OneDrive home page to load fully.
+3. Return to LibreChat and open **From OneDrive** again.
+
+The picker shows a friendly message when Graph returns this 404 (`code: onedrive_not_provisioned`).
+
+---
+
 ## Testing
 
 ### Backend unit tests
@@ -409,6 +565,18 @@ No changes to connect-session / sync handler logic beyond the registry entry.
 ```bash
 cd packages/api
 npx jest src/integrations/nango/handlers.spec.ts --no-coverage
+npx jest src/integrations/microsoft/ --no-coverage
+npx jest src/integrations/dropbox/dropboxApi.spec.ts --no-coverage
+npx jest src/integrations/box/boxApi.spec.ts --no-coverage
+npx jest src/integrations/clio/clioApi.spec.ts --no-coverage
+npx jest src/integrations/googleDrive/driveApi.spec.ts --no-coverage
+```
+
+### Client unit tests
+
+```bash
+cd client
+npx jest src/components/Chat/Input/Files/__tests__/AttachFileMenu.spec.tsx --no-coverage
 ```
 
 ### Manual smoke (Connect UI)
@@ -417,10 +585,13 @@ npx jest src/integrations/nango/handlers.spec.ts --no-coverage
 2. Register webhook in Nango dashboard → `POST https://<librechat>/api/webhooks/nango`.
 3. Restart backend.
 4. Log in as a test user → `GET /api/config` should show `integrationsEnabled: true`, `nangoHost`, `nangoConnectUrl`.
-5. LibreChat chat → attach menu → **From Google Drive** → Connect → Connect UI + Google OAuth.
-6. After OAuth → `GET /api/integrations/google-drive/status` shows `connected`.
-7. Admin Panel `/integrations` shows **Connected** (read-only).
-8. Verify connection in Nango dashboard (new connections have random IDs tagged with `end_user_id`).
+5. **Google:** attach menu → From Google Drive / Gmail / Calendar → connect → pick items → attach.
+6. **Dropbox:** attach menu → From Dropbox → connect → pick files → attach.
+7. **Microsoft:** attach menu → connect Microsoft → verify three entries (OneDrive, Outlook Mail, Outlook Calendar) → pick and attach each type.
+8. **Box / Clio:** attach menu → connect → pick files/documents → attach.
+9. After OAuth → `GET /api/integrations/<providerKey>/status` shows `connected`.
+10. Admin Panel `/integrations` shows **Connected** (read-only).
+11. Verify connection in Nango dashboard (connections tagged with `end_user_id`).
 
 ---
 
@@ -428,10 +599,11 @@ npx jest src/integrations/nango/handlers.spec.ts --no-coverage
 
 | ID | Scope | Priority |
 |----|-------|----------|
-| **PR-6** | Enable Microsoft, Dropbox, Box, Clio | Medium |
-| **Release** | Push branch, open PRs, env vars in staging/prod | High |
+| **Commit / PR** | Commit Microsoft + Box + Clio work on `feat/nango-integration-providers`, open PR | High |
+| **Release** | Merge branch, env vars + Nango integrations in staging/prod | High |
+| **Manual QA** | End-to-end test with real Microsoft / Dropbox / Box / Clio accounts | Medium |
 
-Optional polish: Google Picker JS widget, inline send-mail / create-event actions.
+Optional polish: Google Picker JS widget, inline send-mail / create-event actions, agent tools for Microsoft Graph.
 
 ---
 
@@ -440,6 +612,7 @@ Optional polish: Google Picker JS widget, inline send-mail / create-event action
 - Replacing existing MCP OAuth flows
 - Nango Functions / data sync pipelines
 - BYO OAuth app per tenant
+- SharePoint (separate from Nango `microsoft` — uses existing SharePoint file picker flow)
 
 ---
 
@@ -447,8 +620,8 @@ Optional polish: Google Picker JS widget, inline send-mail / create-event action
 
 | Repo | Branch | Role |
 |------|--------|------|
-| `AI-Workforce-Pro` | `feat/nango-oauth-integrations` | API, Nango service, Mongo, webhooks |
-| `AI-Workforce-Pro-Admin-Panel` | `feat/nango-oauth-integrations` | Integrations UI, server fns |
+| `AI-Workforce-Pro` | `feat/nango-integration-providers` | API, pickers, Nango service, Mongo, webhooks |
+| `AI-Workforce-Pro-Admin-Panel` | `feat/nango-integration-providers` | Integrations audit UI, server fns |
 
 Admin Panel summary: `AI-Workforce-Pro-Admin-Panel/docs/NANGO_INTEGRATIONS.md`
 
