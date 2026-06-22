@@ -94,14 +94,14 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
     }
   }
 
-  async function getConnectParamsHandler(req: ServerRequest, res: Response) {
+  async function createConnectSessionHandler(req: ServerRequest, res: Response) {
+    const { providerKey } = req.params as { providerKey: string };
+
     try {
       const user = getRequestUser(req);
       if (!user) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-
-      const { providerKey } = req.params as { providerKey: string };
       if (!isIntegrationProviderKey(providerKey)) {
         return res.status(400).json({ error: 'Invalid integration provider' });
       }
@@ -115,15 +115,21 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
         return res.status(503).json({ error: 'Integrations are not configured' });
       }
 
-      const params = await nangoService.getConnectParams(user, providerKey);
-      return res.status(200).json(params);
+      const session = await nangoService.createProviderConnectSession(user, providerKey);
+      return res.status(200).json(session);
     } catch (error) {
-      logger.error('[integrations] getConnectParams error:', error);
-      return res.status(500).json({ error: 'Failed to get integration connect params' });
+      const requestUser = getRequestUser(req);
+      logger.error('[integrations] createConnectSession handler error', {
+        providerKey,
+        userId: getUserId(req),
+        tenantId: requestUser?.tenantId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return res.status(500).json({ error: 'Failed to create integration connect session' });
     }
   }
 
-  async function confirmConnectionHandler(req: ServerRequest, res: Response) {
+  async function syncConnectionHandler(req: ServerRequest, res: Response) {
     try {
       const user = getRequestUser(req);
       if (!user) {
@@ -144,16 +150,16 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
         return res.status(503).json({ error: 'Integrations are not configured' });
       }
 
-      const result = await nangoService.confirmProviderConnection(user, providerKey);
+      const result = await nangoService.syncProviderConnection(user, providerKey);
       return res.status(200).json(result);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Failed to confirm integration connection';
-      logger.error('[integrations] confirmConnection error:', error);
+        error instanceof Error ? error.message : 'Failed to sync integration connection';
+      logger.error('[integrations] syncConnection error:', error);
       if (message === INTEGRATION_CONFIRM_NOT_FOUND) {
         return res.status(404).json({ error: message });
       }
-      return res.status(500).json({ error: 'Failed to confirm integration connection' });
+      return res.status(500).json({ error: 'Failed to sync integration connection' });
     }
   }
 
@@ -499,8 +505,8 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
   return {
     listIntegrations: listIntegrationsHandler,
     getProviderStatus: getProviderStatusHandler,
-    getConnectParams: getConnectParamsHandler,
-    confirmConnection: confirmConnectionHandler,
+    createConnectSession: createConnectSessionHandler,
+    syncConnection: syncConnectionHandler,
     getProviderToken: getProviderTokenHandler,
     disconnectProvider: disconnectProviderHandler,
     searchProviderFiles: searchProviderFilesHandler,
@@ -630,69 +636,6 @@ export function createAdminIntegrationHandlers(deps: AdminIntegrationHandlersDep
     }
   }
 
-  async function getConnectParamsHandler(req: ServerRequest, res: Response) {
-    try {
-      const user = req.user;
-      if (!user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const { providerKey } = req.params as { providerKey: string };
-      if (!isIntegrationProviderKey(providerKey)) {
-        return res.status(400).json({ error: 'Invalid integration provider' });
-      }
-
-      const provider = getIntegrationProvider(providerKey);
-      if (!provider?.enabled) {
-        return res.status(404).json({ error: 'Integration provider is not available' });
-      }
-
-      if (!isNangoConfigured()) {
-        return res.status(503).json({ error: 'Integrations are not configured' });
-      }
-
-      const params = await nangoService.getConnectParams(user, providerKey);
-      return res.status(200).json(params);
-    } catch (error) {
-      logger.error('[admin/integrations] getConnectParams error:', error);
-      return res.status(500).json({ error: 'Failed to get integration connect params' });
-    }
-  }
-
-  async function confirmConnectionHandler(req: ServerRequest, res: Response) {
-    try {
-      const user = req.user;
-      if (!user) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const { providerKey } = req.params as { providerKey: string };
-      if (!isIntegrationProviderKey(providerKey)) {
-        return res.status(400).json({ error: 'Invalid integration provider' });
-      }
-
-      const provider = getIntegrationProvider(providerKey);
-      if (!provider?.enabled) {
-        return res.status(404).json({ error: 'Integration provider is not available' });
-      }
-
-      if (!isNangoConfigured()) {
-        return res.status(503).json({ error: 'Integrations are not configured' });
-      }
-
-      const result = await nangoService.confirmProviderConnection(user, providerKey);
-      return res.status(200).json(result);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to confirm integration connection';
-      logger.error('[admin/integrations] confirmConnection error:', error);
-      if (message === INTEGRATION_CONFIRM_NOT_FOUND) {
-        return res.status(404).json({ error: message });
-      }
-      return res.status(500).json({ error: 'Failed to confirm integration connection' });
-    }
-  }
-
   async function disconnectProviderHandler(req: ServerRequest, res: Response) {
     try {
       const user = req.user;
@@ -721,8 +664,6 @@ export function createAdminIntegrationHandlers(deps: AdminIntegrationHandlersDep
     listTenantIntegrations: listTenantIntegrationsHandler,
     listUserIntegrations: listUserIntegrationsHandler,
     listMyIntegrations: listMyIntegrationsHandler,
-    getConnectParams: getConnectParamsHandler,
-    confirmConnection: confirmConnectionHandler,
     disconnectProvider: disconnectProviderHandler,
   };
 }

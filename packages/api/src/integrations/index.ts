@@ -14,8 +14,9 @@ export type {
 } from './providers';
 export {
   getNangoClient,
+  getNangoConnectUrl,
   getNangoHost,
-  getNangoPublicKey,
+  getNangoWebhookSecret,
   isNangoConfigured,
   resetNangoClientForTests,
 } from './nango/client';
@@ -24,12 +25,14 @@ export { createNangoService } from './nango/service';
 export type {
   NangoService,
   NangoServiceDeps,
-  NangoConnectParamsResult,
-  NangoConfirmConnectionResult,
+  NangoConnectSessionResult,
+  NangoSyncConnectionResult,
   IntegrationAccessTokenResult,
 } from './nango/service';
 export { createIntegrationHandlers, createAdminIntegrationHandlers } from './nango/handlers';
 export type { IntegrationHandlersDeps, AdminIntegrationHandlersDeps } from './nango/handlers';
+export { createNangoWebhookHandler } from './nango/webhookHandlers';
+export type { NangoWebhookHandlersDeps } from './nango/webhookHandlers';
 export {
   buildGoogleDriveFullTextQuery,
   downloadGoogleDriveFile,

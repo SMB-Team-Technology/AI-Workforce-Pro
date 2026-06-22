@@ -1,9 +1,8 @@
 # Nango OAuth Integrations — Architecture & Implementation Plan
 
-**Status:** In progress (core flow shipped on branch; prod hardening pending)  
+**Status:** Connect UI migration shipped on branch  
 **Feature branch (both repos):** `feat/nango-oauth-integrations`  
-**Latest commits:** `AI-Workforce-Pro` `74ec7c687`, Admin Panel `42cb9b8`  
-**Last updated:** 2026-06-19
+**Last updated:** 2026-06-16
 
 This document is the single source of truth for integrating external services (Google Drive, Gmail, Microsoft, Dropbox, Box, Clio) via [Nango](https://nango.dev) in LibreChat and the Admin Panel.
 
@@ -13,9 +12,9 @@ This document is the single source of truth for integrating external services (G
 
 1. [Goals](#goals)
 2. [Business decisions](#business-decisions)
-3. [SDK versions & deployment constraint](#sdk-versions--deployment-constraint)
+3. [SDK versions & deployment](#sdk-versions--deployment)
 4. [Current Nango setup](#current-nango-setup)
-5. [Architecture overview (legacy OAuth)](#architecture-overview-legacy-oauth)
+5. [Architecture overview (Connect UI)](#architecture-overview-connect-ui)
 6. [Smooth logins (UX)](#smooth-logins-ux)
 7. [Data model](#data-model)
 8. [Provider registry](#provider-registry)
@@ -27,16 +26,15 @@ This document is the single source of truth for integrating external services (G
 14. [Security](#security)
 15. [Testing](#testing)
 16. [Pending work](#pending-work)
-17. [Future: Connect UI migration](#future-connect-ui-migration)
-18. [Out of scope](#out-of-scope)
+17. [Out of scope](#out-of-scope)
 
 ---
 
 ## Goals
 
-- Use **Nango** as the OAuth orchestrator for third-party integrations (credentials, refresh, popup OAuth).
+- Use **Nango** as the OAuth orchestrator for third-party integrations (credentials, refresh, Connect UI).
 - **Per-user connections:** each employee connects their own Google/Microsoft/etc. account.
-- **Smooth logins:** Nango legacy `auth()` popup, lazy connect in LibreChat when a feature needs Drive/Gmail/Calendar — no custom OAuth forms in LibreChat.
+- **Smooth logins:** Nango Connect UI popup, lazy connect in LibreChat when a feature needs Drive/Gmail/Calendar — no custom OAuth forms in LibreChat.
 - **Scalable provider list:** adding a provider = Nango dashboard config + registry entry + i18n (no duplicated auth logic).
 - **Admin Panel:** audit and support (who is connected in a tenant), not a replacement for end-user connect flows.
 
@@ -53,8 +51,8 @@ This document is the single source of truth for integrating external services (G
 | Primary connect UX | **LibreChat client** | Modal when user needs Drive/Gmail/Calendar (lazy connect) |
 | Admin Panel role | **Complement** | Tenant admins **audit** who in their org is connected |
 | OAuth app credentials | **Platform-level in Nango** | One `google-drive` / `google-mail` / `google-calendar` row in Nango; many **connections** under each |
-| Nango deployment | **Self-hosted** | `https://nango.smbteam.com` (v0.36.x) |
-| Default auth UI | **Legacy `nango.auth()`** | Required for self-hosted v0.36 — Connect UI not available |
+| Nango deployment | **Self-hosted 0.70.7** | `https://nango.smbteam.com` with Connect UI enabled |
+| Default auth UI | **Connect UI** | `createConnectSession` + `openConnectUI` |
 
 ### Platform vs tenant vs user
 
@@ -62,7 +60,7 @@ This document is the single source of truth for integrating external services (G
 |-------|----------------|---------|
 | **Platform** | Integration templates exist once in Nango + registry `enabled: true` | Everyone can connect Google Drive |
 | **Tenant** | Optional **visibility** via admin grants (`read:integrations`); tenant admin sees **list** of connections in their org | Acme Corp admin sees which Acme users connected Drive |
-| **User** | Each employee runs OAuth popup with **their** Google account | `connectionId` in Nango = LibreChat `userId` |
+| **User** | Each employee runs Connect UI with **their** Google account | New connections use Nango-generated IDs tagged with `end_user_id` |
 
 The **"1"** on each row in the Nango dashboard is **one connection** (one user authorized), not one tenant.
 
@@ -71,21 +69,22 @@ The **"1"** on each row in the Nango dashboard is **one connection** (one user a
 | Nango term | Meaning |
 |------------|---------|
 | **Integration** | OAuth template (e.g. `google-drive`) — Client ID/Secret, scopes — configured once in dashboard |
-| **Connection** | One user's authorized account — `connectionId` in legacy flow = LibreChat `userId` |
+| **Connection** | One user's authorized account — Nango-generated `connection_id`, tagged with `end_user_id` |
+| **Connect session** | Short-lived token for the browser Connect UI modal |
 
 ---
 
-## SDK versions & deployment constraint
+## SDK versions & deployment
 
-Self-hosted Nango at **`https://nango.smbteam.com` is v0.36.78**. It does **not** expose `POST /connect/sessions` (Connect UI). All repos pin SDKs to the **0.36.101** line and use **legacy OAuth**.
+Self-hosted Nango at **`https://nango.smbteam.com` must run 0.70.7** with Connect UI enabled (`FLAG_SERVE_CONNECT_UI=true`).
 
 | Package | Version | Where |
 |---------|---------|--------|
-| `@nangohq/node` | `0.36.101` | `packages/api` (backend) |
-| `@nangohq/frontend` | `0.36.101` | LibreChat `client` only |
+| `@nangohq/node` | `^0.70.7` | `packages/api` (backend) |
+| `@nangohq/frontend` | `^0.70.7` | LibreChat `client` only |
 | `@icons-pack/react-simple-icons` | `^13.13.0` | Admin Panel (provider brand icons) |
 
-**Do not upgrade SDKs** to 0.43+ (Connect UI) or 0.67+ (`/connections` plural API) until the self-hosted Nango server is upgraded to match.
+**Upgrade `@nangohq/node` and `@nangohq/frontend` together.**
 
 ---
 
@@ -99,10 +98,11 @@ Self-hosted Nango at **`https://nango.smbteam.com` is v0.36.78**. It does **not*
 
 | Item | Value |
 |------|--------|
-| Nango server version | ~0.36.78 (self-hosted) |
+| Nango server version | **0.70.7** (self-hosted) |
 | Callback URL | `https://nango.smbteam.com/oauth/callback` |
 | API host | `NANGO_HOST=https://nango.smbteam.com` |
-| Legacy OAuth path | `/oauth/connect/{integrationId}?connection_id={userId}` |
+| Connect UI | Hosted on Nango (`NANGO_PUBLIC_CONNECT_URL` or same as `NANGO_HOST`) |
+| Webhook | `POST https://<librechat>/api/webhooks/nango` |
 
 **Planned later** (configure in Nango, then enable in registry):
 
@@ -113,7 +113,7 @@ Self-hosted Nango at **`https://nango.smbteam.com` is v0.36.78**. It does **not*
 
 ---
 
-## Architecture overview (legacy OAuth)
+## Architecture overview (Connect UI)
 
 ### High-level flow
 
@@ -128,33 +128,37 @@ sequenceDiagram
 
     User->>Client: Uses feature requiring Drive
     Client->>API: GET /api/integrations/google-drive/status
-    Note over Client: startup config: nangoHost, nangoPublicKey
+    Note over Client: startup config: nangoHost, nangoConnectUrl
     alt Not connected
-        Client->>API: GET /api/integrations/google-drive/connect-params
-        API-->>Client: { nangoIntegrationId, connectionId: userId }
-        Client->>Nango: auth(integrationId, connectionId) popup
-        Nango-->>User: Google OAuth
-        Nango-->>Client: { providerConfigKey, connectionId }
-        Client->>API: POST /api/integrations/google-drive/confirm
-        API->>Nango: getConnection(integrationId, userId) [secret key]
-        API->>DB: upsert NangoConnection
+        Client->>API: POST /api/integrations/google-drive/connect-session
+        API->>Nango: createConnectSession / createReconnectSession
+        API-->>Client: { sessionToken }
+        Client->>Nango: openConnectUI(sessionToken)
+        Nango-->>User: Connect UI + Google OAuth
+        Nango-->>Client: onEvent type=connect
+        par Persist connection
+            Client->>API: POST /api/integrations/google-drive/sync
+            API->>Nango: listConnections({ tags: end_user_id })
+            API->>DB: upsert NangoConnection
+        and Webhook (async)
+            Nango->>API: POST /api/webhooks/nango (auth event)
+            API->>DB: upsert NangoConnection
+        end
         Client->>Client: invalidate cache, retry feature
     else Connected
-        API->>Svc: getToken via connectionId
+        API->>Svc: getToken via stored connectionId
         Note over User,Nango: Transparent to user after first connect
     end
 ```
-
-Optional **PR-2:** Nango webhook `auth` event can also upsert Mongo (redundant with `confirm` but useful for prod resilience).
 
 ### Layer responsibilities
 
 | Layer | Responsibility |
 |-------|----------------|
-| **Nango** | Credentials, token refresh, OAuth popup (`/oauth/connect/...`) |
+| **Nango** | Credentials, token refresh, Connect UI modal |
 | **Mongo `NangoConnection`** | Metadata mirror: `connectionId`, `userId`, `tenantId`, `providerKey`, `status` |
-| **LibreChat API** | Connect params + confirm (secret key never in browser); token endpoint for agents |
-| **Frontend** | `@nangohq/frontend@0.36.101` — `new Nango({ host, publicKey }).auth(integrationId, connectionId)` |
+| **LibreChat API** | Connect session + sync (secret key never in browser); webhook upsert; token endpoint for agents |
+| **Frontend** | `@nangohq/frontend@0.70.7` — `openConnectUI({ apiURL, baseURL }).setSessionToken(token)` |
 
 ### Who does what
 
@@ -163,7 +167,7 @@ Optional **PR-2:** Nango webhook `auth` event can also upsert Mongo (redundant w
 | Employee | LibreChat client | Connect **their** account via attach menu (Drive/Gmail/Calendar) |
 | Tenant admin | Admin Panel | **Read-only audit:** own status on `/integrations`; per-user popup in Users / Tenant admins |
 | Platform admin | Admin Panel | Same audit capabilities; scoped by tenant when applicable |
-| Dev/platform | Nango dashboard | OAuth apps, scopes, public/secret keys, webhooks (PR-2) |
+| Dev/platform | Nango dashboard | OAuth apps, scopes, webhooks, Connect UI settings |
 
 ---
 
@@ -171,21 +175,19 @@ Optional **PR-2:** Nango webhook `auth` event can also upsert Mongo (redundant w
 
 | Requirement | Implementation |
 |-------------|----------------|
-| No custom OAuth forms in LibreChat | Nango popup via `auth()` |
+| No custom OAuth forms in LibreChat | Nango Connect UI |
 | Short path per provider | One integration ID per provider (`google-drive`, etc.) |
 | No unnecessary re-login | Nango refresh; store only `connectionId` locally |
-| Reconnect | Same `auth()` flow; stale Mongo row removed on disconnect |
+| Reconnect | Same Connect UI flow; `createReconnectSession` when Mongo has a prior `connectionId` |
 | Connect in context | CTA when agent/tool needs Drive — not only a settings page |
-| Drive file destination | When connected, attach menu **From Google Drive** expands like SharePoint: context (OCR), file search, or code environment |
-| Gmail / Calendar attach | Single menu item → always attaches as `tool_resource: context` (`.txt` summaries) |
-| Connection identity | `connectionId` = authenticated LibreChat `userId` |
+| Drive file destination | When connected, attach menu **From Google Drive** expands like SharePoint |
+| Gmail / Calendar attach | Single menu item → attaches as `tool_resource: context` (`.txt` summaries) |
 
 **Anti-patterns (avoid):**
 
 - Reimplementing MCP-style OAuth (PKCE, custom callbacks, `FlowStateManager`)
 - Forcing users to Admin Panel only to connect Drive from chat
 - Exposing `NANGO_SECRET_KEY` or long-lived access tokens to the browser
-- Using Connect UI SDK methods (`openConnectUI`, `createConnectSession`) against v0.36 server
 
 ---
 
@@ -199,7 +201,7 @@ Optional **PR-2:** Nango webhook `auth` event can also upsert Mongo (redundant w
   tenantId?: string,          // for tenant-scoped admin lists
   providerKey: string,        // e.g. 'google-drive' (our registry key)
   nangoIntegrationId: string, // e.g. 'google-drive' (Nango integration ID)
-  connectionId: string,       // Nango connection_id (= userId string in legacy flow)
+  connectionId: string,       // Nango connection_id (resolved via end_user_id tags)
   status: 'connected' | 'expired' | 'revoked',
   connectedAt: Date,
   createdAt / updatedAt
@@ -211,15 +213,17 @@ Optional **PR-2:** Nango webhook `auth` event can also upsert Mongo (redundant w
 - Unique: `{ userId, providerKey }`
 - Query: `{ tenantId, providerKey }`
 
-### Legacy connection identity
+### Connect session tags
 
-In the 0.36 popup flow, the frontend calls:
+Connect sessions include tags for webhook/sync resolution:
 
 ```typescript
-await nango.auth(nangoIntegrationId, connectionId);
+{
+  end_user_id: userId,
+  tenant_id?: tenantId,
+  user_email?: email,
+}
 ```
-
-where `connectionId` is the LibreChat user ID returned by `GET .../connect-params`. The backend verifies the connection with `nango.getConnection(integrationId, userId)` before upserting Mongo.
 
 ---
 
@@ -244,24 +248,26 @@ Location: `packages/api/src/integrations/providers.ts`
 ### Backend (`.env` / `.env.example`)
 
 ```env
-# Required for integrations (both must be set)
-NANGO_SECRET_KEY=          # server-only — Environment settings > API Keys
-NANGO_PUBLIC_KEY=          # browser-safe — same dashboard, Public Key (UUID)
+# Required — server-only (Environment settings > API Keys)
+NANGO_SECRET_KEY=
 
-# Self-hosted Nango API (defaults to https://api.nango.dev if unset)
+# Self-hosted Nango API host (defaults to https://api.nango.dev)
 NANGO_HOST=https://nango.smbteam.com
 
-# PR-2: verify POST /api/webhooks/nango
+# Connect UI base URL for the browser (defaults to NANGO_HOST)
+NANGO_PUBLIC_CONNECT_URL=
+
+# Webhook HMAC signing key (Environment settings > Webhooks — NOT the API secret)
 NANGO_WEBHOOK_SECRET=
 ```
 
-`isNangoConfigured()` returns true only when **both** `NANGO_SECRET_KEY` and `NANGO_PUBLIC_KEY` are set.
+`isNangoConfigured()` returns true when **`NANGO_SECRET_KEY`** (or `NANGO_API_KEY`) is set.
 
 Startup config (`GET /api/config`) exposes to the client:
 
 - `integrationsEnabled: boolean`
 - `nangoHost: string`
-- `nangoPublicKey: string`
+- `nangoConnectUrl: string`
 
 ### Admin Panel (`.env`)
 
@@ -270,11 +276,11 @@ Startup config (`GET /api/config`) exposes to the client:
 NANGO_HOST=https://nango.smbteam.com
 ```
 
-Admin Panel server functions call the LibreChat Admin API only. The panel does **not** run OAuth in the browser (`@nangohq/frontend` was removed). Connect/disconnect happens in LibreChat.
+Admin Panel server functions call the LibreChat Admin API only. The panel does **not** run OAuth in the browser.
 
 ### LibreChat client
 
-No secrets in `.env`. Reads `nangoHost` and `nangoPublicKey` from startup config.
+No secrets in `.env`. Reads `nangoHost` and `nangoConnectUrl` from startup config.
 
 ---
 
@@ -288,8 +294,8 @@ Base path: `/api/integrations`
 |--------|------|-------------|
 | `GET` | `/` | All providers + status for current user (syncs from Nango on read) |
 | `GET` | `/:providerKey/status` | Single provider status |
-| `GET` | `/:providerKey/connect-params` | `{ nangoIntegrationId, connectionId }` for `auth()` |
-| `POST` | `/:providerKey/confirm` | Verify connection in Nango + upsert Mongo after OAuth |
+| `POST` | `/:providerKey/connect-session` | **Connect UI** — `{ sessionToken, expiresAt? }` |
+| `POST` | `/:providerKey/sync` | Resolve connection in Nango + upsert Mongo after OAuth |
 | `DELETE` | `/:providerKey` | Disconnect (Nango + Mongo) |
 | `GET` | `/:providerKey/token` | Fresh access token — **server/agents only**, not browser |
 
@@ -300,17 +306,16 @@ Base path: `/api/admin/integrations`
 | Method | Path | Capability | Description |
 |--------|------|------------|-------------|
 | `GET` | `/` | `read:integrations` | Current admin user's provider statuses |
-| `GET` | `/tenant` | `read:integrations` | All connections in caller's tenant (legacy listing API) |
+| `GET` | `/tenant` | `read:integrations` | All connections in caller's tenant |
 | `GET` | `/users/:userId` | `read:integrations` | Provider statuses for a user (tenant-scoped) |
-| `GET` | `/:providerKey/connect-params` | `manage:integrations` | Legacy — not used by Admin Panel UI |
-| `POST` | `/:providerKey/confirm` | `manage:integrations` | Legacy — not used by Admin Panel UI |
-| `DELETE` | `/:providerKey` | `manage:integrations` | Legacy — not used by Admin Panel UI |
 
-### Webhooks (PR-2 — pending)
+### Webhooks
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/webhooks/nango` | Nango `auth` events → upsert `connectionId` (optional redundancy with `confirm`) |
+| `POST` | `/api/webhooks/nango` | Nango `auth` events → upsert/update `NangoConnection` (HMAC verified) |
+
+**Important:** The webhook route is mounted **before** `express.json()` with `express.raw({ type: 'application/json' })` so HMAC verification works.
 
 ### Capabilities
 
@@ -318,8 +323,6 @@ Base path: `/api/admin/integrations`
 |------------|---------|
 | `read:integrations` | — |
 | `manage:integrations` | `read:integrations` |
-
-Defined in `packages/data-schemas/src/admin/capabilities.ts`.
 
 ---
 
@@ -332,56 +335,35 @@ packages/
 ├── api/src/integrations/
 │   ├── index.ts
 │   ├── providers.ts
-│   ├── googleDrive/driveApi.ts
 │   └── nango/
-│       ├── client.ts          # getNangoClient(), getNangoPublicKey(), isNangoConfigured()
-│       ├── service.ts         # connect params, confirm, sync, disconnect, status, token
+│       ├── client.ts          # getNangoClient(), getNangoConnectUrl(), isNangoConfigured()
+│       ├── service.ts         # connect session, sync, webhook, disconnect, status, token
 │       ├── handlers.ts        # user + admin HTTP handlers
+│       ├── webhook.ts         # payload parsing
+│       ├── webhookHandlers.ts # HMAC verify + route handler
 │       └── handlers.spec.ts
 └── data-schemas/src/
-    ├── schema/nangoConnection.ts
-    ├── models/nangoConnection.ts
-    ├── methods/nangoConnection.ts
-    └── types/integration.ts
+    └── schema/nangoConnection.ts
 
 api/server/routes/
 ├── integrations.js
-└── admin/integrations.js
+└── webhooks/nango.js
 ```
 
 ### Admin Panel (`AI-Workforce-Pro-Admin-Panel`)
 
-```
-src/
-├── constants/integrations.ts
-├── types/integration.ts
-├── server/integrations.ts          # read-only admin API wrappers
-├── components/integrations/
-│   ├── IntegrationsPage.tsx        # own-account status cards (read-only)
-│   ├── ProviderCard.tsx
-│   ├── ConnectionStatusBadge.tsx
-│   ├── IntegrationProviderIcon.tsx # @icons-pack/react-simple-icons
-│   ├── IntegrationProviderLabel.tsx
-│   └── UserIntegrationsDialog.tsx  # Users + Tenant admins tables
-└── routes/_app/integrations.tsx
-```
-
-**UX:** OAuth connect happens only in LibreChat. Admin Panel is audit/support UI.
+Read-only audit UI — see `AI-Workforce-Pro-Admin-Panel/docs/NANGO_INTEGRATIONS.md`.
 
 ### LibreChat client
 
 ```
 client/src/
-├── hooks/integrations/useNangoConnect.ts
-├── data-provider/Integrations/
-│   ├── queries.ts
-│   └── mutations.ts           # connect-params + confirm
+├── hooks/integrations/useNangoConnect.ts   # Connect UI flow
+├── data-provider/Integrations/mutations.ts # connect-session + sync
 └── components/Integrations/
-    ├── ConnectProviderPrompt.tsx
-    └── attachMenu.ts
 ```
 
-Dependency: `@nangohq/frontend@0.36.101`
+Dependency: `@nangohq/frontend@^0.70.7`
 
 ---
 
@@ -389,60 +371,13 @@ Dependency: `@nangohq/frontend@0.36.101`
 
 | PR | Repo | Scope | Status |
 |----|------|-------|--------|
-| **PR-1** | Backend | Registry, `nangoService`, Mongo schema, user + admin routes, capabilities, tests | **Done** |
+| **PR-1** | Backend | Registry, `nangoService`, Mongo schema, user + admin routes | **Done** |
 | **PR-4** | LibreChat client | Lazy connect inline (Drive, Gmail, Calendar) | **Done** |
-| **PR-3** | Admin Panel | Read-only Integrations page, user audit dialogs, nav, i18n EN/ES | **Done** |
-| **PR-5** | Backend | Token endpoint + `google_drive` agent tool | **Done** |
-| **Legacy migration** | Both | SDK 0.36.101, `auth()` flow, connect-params/confirm endpoints | **Done** |
-| **PR-2** | Backend | Webhook handler, signature verification | **Pending** (before prod) |
-| **PR-6** | Both | Enable Microsoft, Dropbox, Box, Clio in registry + Nango | **Pending** |
-| **PR-7** | Both | Reconnect UX polish, connect links by email (optional) | **Done** |
-
-### Recommended order
-
-```
-PR-1 → PR-4 → PR-3 → PR-5 → Legacy OAuth → PR-2 (before prod)
-                                    ↘ PR-6 → PR-7
-```
-
-**Local dev without PR-2:** after OAuth popup succeeds, the client calls `POST .../confirm`, which verifies via `getConnection` and upserts Mongo. `GET /integrations` also syncs enabled providers from Nango on read.
-
-### PR-1 acceptance criteria (backend)
-
-- [x] `GET /api/integrations/google-drive/connect-params` returns `{ nangoIntegrationId, connectionId }` when Nango is configured
-- [x] `POST /api/integrations/google-drive/confirm` upserts Mongo after OAuth
-- [x] Per-user Mongo record keyed by `{ userId, providerKey }`
-- [x] `GET /integrations` syncs from Nango via `listConnections(userId)` (SDK 0.36)
-- [x] Admin `GET /api/admin/integrations/tenant` for tenant admins
-- [x] Admin `GET /api/admin/integrations/users/:userId` with tenant scoping
-- [x] Unit tests for handlers
-
-### PR-2 acceptance criteria (webhook)
-
-- [ ] `POST /api/webhooks/nango` verifies HMAC with `NANGO_WEBHOOK_SECRET`
-- [ ] On `auth` success: upsert `NangoConnection` using connection id + integration id
-- [ ] On revoke/override: update or delete local metadata
-- [ ] Register webhook URL in Nango dashboard → LibreChat public URL
-
-### PR-3 acceptance criteria (Admin Panel)
-
-- [x] Route `/integrations` in sidebar (requires `read:integrations` or `manage:integrations`)
-- [x] Provider cards with status badge (Connected / Not connected / Disabled) — **read-only**
-- [x] **No Connect button** in Admin Panel (OAuth only from LibreChat)
-- [x] Users page + Tenant admins table: per-user integrations dialog
-- [x] Provider brand icons via `@icons-pack/react-simple-icons`
-
-### PR-4 acceptance criteria (LibreChat client)
-
-- [x] When tool/agent needs Drive and user not connected → inline prompt
-- [x] After OAuth + confirm → retry operation
-- [x] No Admin Panel redirect required for normal users
-- [x] Google Drive attach submenu (context / file search / code environment) when connected — same pattern as SharePoint
-
-### PR-5 acceptance criteria (token endpoint)
-
-- [x] `GET /api/integrations/:providerKey/token` returns fresh OAuth access token for authenticated user
-- [x] Not exposed in `librechat-data-provider` (server/agents only)
+| **PR-3** | Admin Panel | Read-only Integrations page, user audit dialogs | **Done** |
+| **PR-5** | Backend | Token endpoint + Google agent tools | **Done** |
+| **Connect UI migration** | Both | SDK 0.70.7, connect-session/sync, webhook | **Done** |
+| **PR-6** | Both | Enable Microsoft, Dropbox, Box, Clio | **Pending** |
+| **PR-7** | Both | Reconnect UX polish | **Done** |
 
 ---
 
@@ -451,17 +386,17 @@ PR-1 → PR-4 → PR-3 → PR-5 → Legacy OAuth → PR-2 (before prod)
 1. Create/configure integration in **Nango dashboard** (OAuth app, scopes).
 2. Add entry to `INTEGRATION_PROVIDERS` in `providers.ts` with `enabled: true`.
 3. Add i18n keys + icon in Admin Panel and client locales.
-4. (If needed) wire agent/tool to call `/api/integrations/:providerKey/token` or Nango proxy.
+4. (If needed) wire agent/tool to call `/api/integrations/:providerKey/token`.
 
-No changes to connect-params / confirm / disconnect handler logic beyond the registry entry.
+No changes to connect-session / sync handler logic beyond the registry entry.
 
 ---
 
 ## Security
 
 - `NANGO_SECRET_KEY` and `NANGO_WEBHOOK_SECRET` **server-only**.
-- `NANGO_PUBLIC_KEY` is **intentionally exposed** to the browser (required for legacy `auth()`).
-- User routes: `requireJwtAuth` — users can only connect/disconnect **their own** connections (`connectionId` = their `userId`).
+- Connect session tokens are short-lived and scoped to allowed integrations — safe in the browser.
+- User routes: `requireJwtAuth` — users can only connect/disconnect **their own** connections.
 - Admin tenant list: requires `tenantId` on caller (tenant admin).
 - Access tokens for agents: server-side only; never return in JSON to browser.
 
@@ -474,111 +409,29 @@ No changes to connect-params / confirm / disconnect handler logic beyond the reg
 ```bash
 cd packages/api
 npx jest src/integrations/nango/handlers.spec.ts --no-coverage
-npx jest src/integrations/googleDrive/driveApi.spec.ts --no-coverage
 ```
 
-Pre-commit (backend):
+### Manual smoke (Connect UI)
 
-```bash
-npx lint-staged --config ./.husky/lint-staged.config.js
-npm run test:all
-npm run build
-```
-
-### Admin Panel
-
-```bash
-npm run lint-staged
-npm run typecheck
-npm run test
-npm run build
-```
-
-### Manual smoke (legacy flow)
-
-1. Set `NANGO_SECRET_KEY`, `NANGO_PUBLIC_KEY`, and `NANGO_HOST` in LibreChat `.env`.
-2. Restart backend and Admin Panel.
-3. Log in as a test user → `GET /api/config` should show `integrationsEnabled: true`, `nangoHost`, `nangoPublicKey`.
-4. LibreChat chat → attach menu (clip) → **From Google Drive** → Connect → Google OAuth popup.
-5. After OAuth completes → `GET /api/integrations/google-drive/status` shows `connected`.
-6. Admin Panel `/integrations` shows **Connected** for that admin's own account (read-only).
-7. Admin Panel **Users** or **Tenant admins** → integrations icon → dialog lists that user's providers.
-8. Verify connection in Nango dashboard (`connection_id` = LibreChat `userId`).
-
-**Google Drive agent tool (optional E2E):** requires Agents endpoint enabled locally — see [Pending work](#pending-work).
+1. Set `NANGO_SECRET_KEY`, `NANGO_HOST`, and `NANGO_WEBHOOK_SECRET` in LibreChat `.env`.
+2. Register webhook in Nango dashboard → `POST https://<librechat>/api/webhooks/nango`.
+3. Restart backend.
+4. Log in as a test user → `GET /api/config` should show `integrationsEnabled: true`, `nangoHost`, `nangoConnectUrl`.
+5. LibreChat chat → attach menu → **From Google Drive** → Connect → Connect UI + Google OAuth.
+6. After OAuth → `GET /api/integrations/google-drive/status` shows `connected`.
+7. Admin Panel `/integrations` shows **Connected** (read-only).
+8. Verify connection in Nango dashboard (new connections have random IDs tagged with `end_user_id`).
 
 ---
 
 ## Pending work
 
-### Code (planned PRs)
+| ID | Scope | Priority |
+|----|-------|----------|
+| **PR-6** | Enable Microsoft, Dropbox, Box, Clio | Medium |
+| **Release** | Push branch, open PRs, env vars in staging/prod | High |
 
-| ID | Repo | Scope | Priority |
-|----|------|-------|----------|
-| **PR-2** | Backend | `POST /api/webhooks/nango` — HMAC verify, upsert on `auth`, revoke/delete on disconnect | **Before prod** |
-| **PR-6** | Both | Enable Microsoft, Dropbox, Box, Clio (Nango dashboard + registry + UI) | Medium |
-| **PR-7** | Both | Reconnect UX polish (expired/revoked tokens, clearer prompts) | **Done** |
-
-**PR-2 checklist:**
-
-- [ ] `POST /api/webhooks/nango` verifies HMAC with `NANGO_WEBHOOK_SECRET`
-- [ ] On `auth` success: upsert `NangoConnection`
-- [ ] On revoke/override: update or delete local metadata
-- [ ] Register webhook URL in Nango dashboard → LibreChat public URL
-
-### Product / UX gaps
-
-| Item | Status |
-|------|--------|
-| **Google Drive file picker** | **Done** — search/list dialog + server download attach |
-| **Google Drive attach destinations** | **Done** — submenu: context (OCR), file search, code environment (parity with SharePoint) |
-| **Gmail / Calendar agent tools** | **Done** — `google_mail`, `google_calendar` tools + agent checkboxes |
-| **Post-connect chat actions** | **Done** — Gmail/Calendar attach as `.txt` context files (always `tool_resource: context`) |
-| **Attach menu when connected** | **Done** — opens picker dialogs for Drive, Gmail, Calendar |
-
-Remaining polish (optional): Google Picker JS widget (needs `GOOGLE_PICKER_API_KEY`), inline send-mail / create-event actions, email reconnect links for admins.
-
-### Ops / release
-
-- [ ] Push `feat/nango-oauth-integrations` and open PRs (both repos)
-- [ ] Set `NANGO_*` env vars in dev/staging/prod
-- [ ] Register Nango webhook after PR-2
-- [ ] E2E test: connect via LibreChat + agent Drive search
-
-### Local dev: enable Agents (for Drive tool test)
-
-Production `librechat.yaml` keeps Agents hidden. For local E2E of the `google_drive` tool:
-
-```env
-# LibreChat .env
-ENDPOINTS=anthropic,agents
-```
-
-```yaml
-# librechat.yaml (dev only)
-interface:
-  agents:
-    use: true
-    create: true
-endpoints:
-  agents:
-    disableBuilder: false
-```
-
-Restart backend after changes. Create an agent with **Google Drive** enabled, connect Drive via the attach menu, then ask the agent to search/list files.
-
----
-
-## Future: Connect UI migration
-
-When self-hosted Nango is upgraded to **≥0.45** with Connect UI enabled:
-
-1. Upgrade `@nangohq/node` and `@nangohq/frontend` together (target ~0.70).
-2. Replace `connect-params` / `confirm` / `auth()` with `createConnectSession` + `openConnectUI`.
-3. Re-enable `end_user` tags and optional webhook-only persistence.
-4. Remove `NANGO_PUBLIC_KEY` from startup config if Connect UI session tokens replace public-key auth.
-
-Until then, **stay on 0.36.101** and the legacy flow documented above.
+Optional polish: Google Picker JS widget, inline send-mail / create-event actions.
 
 ---
 
@@ -587,8 +440,6 @@ Until then, **stay on 0.36.101** and the legacy flow documented above.
 - Replacing existing MCP OAuth flows
 - Nango Functions / data sync pipelines
 - BYO OAuth app per tenant
-- Google Drive Picker UI (reverted; agent tool uses API search only)
-- Public documentation on librechat.ai
 
 ---
 
@@ -608,4 +459,3 @@ Admin Panel summary: `AI-Workforce-Pro-Admin-Panel/docs/NANGO_INTEGRATIONS.md`
 - [Nango Auth guide](https://nango.dev/docs/guides/auth/auth-guide)
 - [Nango Node SDK](https://nango.dev/docs/reference/backend/backend-sdk/node)
 - [Nango Frontend SDK](https://nango.dev/docs/reference/frontend/frontend-sdk)
-- Internal: `docs/CONFIG_HIERARCHY.md` (Admin Panel config — separate concern)

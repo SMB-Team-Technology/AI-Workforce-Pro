@@ -34,12 +34,14 @@ export interface IntegrationStatusResponse {
   integration: IntegrationProviderStatus;
 }
 
-export interface IntegrationConnectParamsResponse {
-  nangoIntegrationId: string;
-  connectionId: string;
+export interface IntegrationConnectSessionResponse {
+  sessionToken: string;
+  expiresAt?: string;
+  /** Connect UI iframe base URL — use this instead of startup config when present. */
+  connectUrl: string;
 }
 
-export interface IntegrationConfirmResponse {
+export interface IntegrationSyncResponse {
   providerKey: IntegrationProviderKey;
   status: IntegrationConnectionStatus;
   connectionId: string;

@@ -10,29 +10,28 @@ function invalidateIntegrationQueries(
   queryClient.invalidateQueries([QueryKeys.integrationStatus, providerKey]);
 }
 
-export const useGetIntegrationConnectParamsMutation = (): UseMutationResult<
-  t.IntegrationConnectParamsResponse,
+export const useCreateIntegrationConnectSessionMutation = (): UseMutationResult<
+  t.IntegrationConnectSessionResponse,
   Error,
   string
 > => {
-  return useMutation((providerKey: string) => dataService.getIntegrationConnectParams(providerKey));
+  return useMutation((providerKey: string) =>
+    dataService.createIntegrationConnectSession(providerKey),
+  );
 };
 
-export const useConfirmIntegrationMutation = (): UseMutationResult<
-  t.IntegrationConfirmResponse,
+export const useSyncIntegrationConnectionMutation = (): UseMutationResult<
+  t.IntegrationSyncResponse,
   Error,
   string
 > => {
   const queryClient = useQueryClient();
 
-  return useMutation(
-    (providerKey: string) => dataService.confirmIntegrationConnection(providerKey),
-    {
-      onSuccess: (_data, providerKey) => {
-        invalidateIntegrationQueries(queryClient, providerKey);
-      },
+  return useMutation((providerKey: string) => dataService.syncIntegrationConnection(providerKey), {
+    onSuccess: (_data, providerKey) => {
+      invalidateIntegrationQueries(queryClient, providerKey);
     },
-  );
+  });
 };
 
 export const useDisconnectIntegrationMutation = (): UseMutationResult<

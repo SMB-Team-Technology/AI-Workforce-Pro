@@ -6,6 +6,34 @@ function getAxiosResponse(error: unknown): { status?: number; data?: unknown } |
   return response;
 }
 
+function getAxiosConfig(error: unknown): { url?: string; method?: string } | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+  const config = (error as { config?: { url?: string; method?: string } }).config;
+  return config;
+}
+
+export interface NangoHttpErrorDetails {
+  message: string;
+  status?: number;
+  requestUrl?: string;
+  method?: string;
+  responseData?: unknown;
+}
+
+export function getNangoHttpErrorDetails(error: unknown): NangoHttpErrorDetails {
+  const response = getAxiosResponse(error);
+  const config = getAxiosConfig(error);
+  return {
+    message: error instanceof Error ? error.message : String(error),
+    status: response?.status,
+    requestUrl: config?.url,
+    method: config?.method,
+    responseData: response?.data,
+  };
+}
+
 export function isNangoNotFoundError(error: unknown): boolean {
   const response = getAxiosResponse(error);
   if (response?.status === 404) {

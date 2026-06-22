@@ -133,6 +133,11 @@ const startServer = async () => {
   /* Middleware */
   app.use(metricsMiddleware);
   app.use(noIndex);
+  app.use(
+    '/api/webhooks/nango',
+    express.raw({ type: 'application/json', limit: '1mb' }),
+    routes.nangoWebhooks,
+  );
   app.use(express.json({ limit: '3mb' }));
   app.use(express.urlencoded({ extended: true, limit: '3mb' }));
   app.use(handleJsonParseError);

@@ -35,8 +35,8 @@ router.get('/:providerKey/events', handlers.listProviderEvents);
 router.post('/:providerKey/events/attach', handlers.attachProviderEvents);
 router.get('/:providerKey/status', handlers.getProviderStatus);
 router.get('/:providerKey/token', handlers.getProviderToken);
-router.get('/:providerKey/connect-params', handlers.getConnectParams);
-router.post('/:providerKey/confirm', handlers.confirmConnection);
+router.post('/:providerKey/connect-session', handlers.createConnectSession);
+router.post('/:providerKey/sync', handlers.syncConnection);
 router.delete('/:providerKey', handlers.disconnectProvider);
 
 module.exports = router;

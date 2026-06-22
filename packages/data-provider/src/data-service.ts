@@ -1286,16 +1286,16 @@ export function getIntegrationStatus(
   return request.get(endpoints.integrationStatus(providerKey));
 }
 
-export function getIntegrationConnectParams(
+export function createIntegrationConnectSession(
   providerKey: string,
-): Promise<import('./types/integrations').IntegrationConnectParamsResponse> {
-  return request.get(endpoints.integrationConnectParams(providerKey));
+): Promise<import('./types/integrations').IntegrationConnectSessionResponse> {
+  return request.post(endpoints.integrationConnectSession(providerKey));
 }
 
-export function confirmIntegrationConnection(
+export function syncIntegrationConnection(
   providerKey: string,
-): Promise<import('./types/integrations').IntegrationConfirmResponse> {
-  return request.post(endpoints.integrationConfirm(providerKey));
+): Promise<import('./types/integrations').IntegrationSyncResponse> {
+  return request.post(endpoints.integrationSync(providerKey));
 }
 
 export function disconnectIntegration(providerKey: string): Promise<{ success: boolean }> {

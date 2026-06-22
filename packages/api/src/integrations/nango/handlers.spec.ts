@@ -50,14 +50,15 @@ function createMockNangoService() {
   return {
     listUserProviderStatuses: jest.fn().mockResolvedValue([googleDriveStatus]),
     getProviderStatus: jest.fn().mockResolvedValue(googleDriveStatus),
-    getConnectParams: jest.fn().mockResolvedValue({
-      nangoIntegrationId: 'google-drive',
-      connectionId: mockUser._id?.toString(),
+    createProviderConnectSession: jest.fn().mockResolvedValue({
+      sessionToken: 'connect-session-token',
+      expiresAt: '2026-06-19T13:00:00.000Z',
+      connectUrl: 'https://nango.smbteam.com',
     }),
-    confirmProviderConnection: jest.fn().mockResolvedValue({
+    syncProviderConnection: jest.fn().mockResolvedValue({
       providerKey: 'google-drive',
       status: 'connected',
-      connectionId: mockUser._id?.toString(),
+      connectionId: 'nango-connection-id',
     }),
     disconnectProvider: jest.fn().mockResolvedValue(undefined),
     getProviderAccessToken: jest.fn().mockResolvedValue({
@@ -102,7 +103,7 @@ describe('createIntegrationHandlers', () => {
     expect(json).toHaveBeenCalledWith({ error: 'Integrations are not configured' });
   });
 
-  it('returns connect params for google-drive', async () => {
+  it('creates a connect session for google-drive', async () => {
     const nangoService = createMockNangoService();
     const handlers = createIntegrationHandlers({
       nangoService,
@@ -112,32 +113,21 @@ describe('createIntegrationHandlers', () => {
       params: { providerKey: 'google-drive' },
     });
 
-    await handlers.getConnectParams(req, res);
+    await handlers.createConnectSession(req, res);
 
     expect(status).toHaveBeenCalledWith(200);
     expect(json).toHaveBeenCalledWith({
-      nangoIntegrationId: 'google-drive',
-      connectionId: mockUser._id?.toString(),
+      sessionToken: 'connect-session-token',
+      expiresAt: '2026-06-19T13:00:00.000Z',
+      connectUrl: 'https://nango.smbteam.com',
     });
-    expect(nangoService.getConnectParams).toHaveBeenCalledWith(mockUser, 'google-drive');
+    expect(nangoService.createProviderConnectSession).toHaveBeenCalledWith(
+      mockUser,
+      'google-drive',
+    );
   });
 
-  it('returns 400 for an invalid provider key on connect params', async () => {
-    const handlers = createIntegrationHandlers({
-      nangoService: createMockNangoService(),
-      isNangoConfigured: () => true,
-    });
-    const { req, res, status, json } = createReqRes({
-      params: { providerKey: 'invalid-provider' },
-    });
-
-    await handlers.getConnectParams(req, res);
-
-    expect(status).toHaveBeenCalledWith(400);
-    expect(json).toHaveBeenCalledWith({ error: 'Invalid integration provider' });
-  });
-
-  it('confirms a connection for google-drive', async () => {
+  it('syncs a connection for google-drive', async () => {
     const nangoService = createMockNangoService();
     const handlers = createIntegrationHandlers({
       nangoService,
@@ -147,15 +137,15 @@ describe('createIntegrationHandlers', () => {
       params: { providerKey: 'google-drive' },
     });
 
-    await handlers.confirmConnection(req, res);
+    await handlers.syncConnection(req, res);
 
     expect(status).toHaveBeenCalledWith(200);
     expect(json).toHaveBeenCalledWith({
       providerKey: 'google-drive',
       status: 'connected',
-      connectionId: mockUser._id?.toString(),
+      connectionId: 'nango-connection-id',
     });
-    expect(nangoService.confirmProviderConnection).toHaveBeenCalledWith(mockUser, 'google-drive');
+    expect(nangoService.syncProviderConnection).toHaveBeenCalledWith(mockUser, 'google-drive');
   });
 
   it('returns an access token for a connected provider', async () => {

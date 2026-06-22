@@ -500,11 +500,10 @@ export const integrations = () => `${integrationsRoot}/`;
 export const integrationStatus = (providerKey: string) =>
   `${integrationsRoot}/${providerKey}/status`;
 
-export const integrationConnectParams = (providerKey: string) =>
-  `${integrationsRoot}/${providerKey}/connect-params`;
+export const integrationConnectSession = (providerKey: string) =>
+  `${integrationsRoot}/${providerKey}/connect-session`;
 
-export const integrationConfirm = (providerKey: string) =>
-  `${integrationsRoot}/${providerKey}/confirm`;
+export const integrationSync = (providerKey: string) => `${integrationsRoot}/${providerKey}/sync`;
 
 export const integrationDisconnect = (providerKey: string) => `${integrationsRoot}/${providerKey}`;
 

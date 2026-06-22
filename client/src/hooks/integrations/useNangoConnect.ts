@@ -9,10 +9,10 @@ import {
 } from 'librechat-data-provider';
 import type { IntegrationConnectionStatus, IntegrationProviderKey } from 'librechat-data-provider';
 import {
-  useConfirmIntegrationMutation,
-  useGetIntegrationConnectParamsMutation,
+  useCreateIntegrationConnectSessionMutation,
   useGetStartupConfig,
   useIntegrationStatusQuery,
+  useSyncIntegrationConnectionMutation,
 } from '~/data-provider';
 import { isIntegrationReconnectSuccess } from '~/components/Integrations/connectPrompt';
 import { INTEGRATION_LABEL_KEYS } from '~/constants/integrations';
@@ -33,7 +33,7 @@ export function useNangoConnect({
   const { data: startupConfig } = useGetStartupConfig();
   const integrationsEnabled = startupConfig?.integrationsEnabled === true;
   const nangoHost = startupConfig?.nangoHost;
-  const nangoPublicKey = startupConfig?.nangoPublicKey;
+  const nangoConnectUrl = startupConfig?.nangoConnectUrl ?? nangoHost;
 
   const {
     data: statusData,
@@ -43,8 +43,8 @@ export function useNangoConnect({
     enabled: enabled && integrationsEnabled,
   });
 
-  const connectParamsMutation = useGetIntegrationConnectParamsMutation();
-  const confirmMutation = useConfirmIntegrationMutation();
+  const connectSessionMutation = useCreateIntegrationConnectSessionMutation();
+  const syncMutation = useSyncIntegrationConnectionMutation();
   const [isConnecting, setIsConnecting] = useState(false);
   const connectInFlightRef = useRef(false);
 
@@ -63,7 +63,7 @@ export function useNangoConnect({
   }, [queryClient, providerKey, refetch]);
 
   const connect = useCallback(async (): Promise<boolean> => {
-    if (!integrationsEnabled || !nangoHost || !nangoPublicKey) {
+    if (!integrationsEnabled || !nangoHost || !nangoConnectUrl) {
       return false;
     }
 
@@ -80,29 +80,70 @@ export function useNangoConnect({
     const statusBeforeConnect = status;
 
     try {
-      const params = await connectParamsMutation.mutateAsync(providerKey);
-      const nango = new Nango({ host: nangoHost, publicKey: nangoPublicKey });
-      const authResult = await nango.auth(params.nangoIntegrationId, params.connectionId);
+      const session = await connectSessionMutation.mutateAsync(providerKey);
+      const nango = new Nango({ host: nangoHost });
+      const connectUiBaseUrl = session.connectUrl || nangoConnectUrl;
 
-      if (authResult.isPending) {
+      const connected = await new Promise<boolean>((resolve) => {
+        let settled = false;
+        const settle = (value: boolean) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          resolve(value);
+        };
+
+        let connectSucceeded = false;
+
+        const connectUI = nango.openConnectUI({
+          apiURL: nangoHost,
+          baseURL: connectUiBaseUrl,
+          detectClosedAuthWindow: true,
+          onEvent: (event) => {
+            if (event.type === 'connect') {
+              connectSucceeded = true;
+              void (async () => {
+                try {
+                  await syncMutation.mutateAsync(providerKey);
+                  await syncStatus();
+                  showToast({
+                    message: localize(
+                      isIntegrationReconnectSuccess(statusBeforeConnect)
+                        ? 'com_integrations_reconnect_success'
+                        : 'com_integrations_connect_success',
+                    ),
+                    status: 'success',
+                  });
+                  settle(true);
+                } catch {
+                  showToast({
+                    message: localize('com_integrations_connect_error'),
+                    status: 'error',
+                  });
+                  settle(false);
+                }
+              })();
+              return;
+            }
+
+            if (event.type === 'close' && !connectSucceeded) {
+              settle(false);
+            }
+          },
+        });
+
+        connectUI.setSessionToken(session.sessionToken);
+      });
+
+      if (!connected) {
         showToast({
           message: localize('com_integrations_connect_error'),
           status: 'warning',
         });
-        return false;
       }
 
-      await confirmMutation.mutateAsync(providerKey);
-      await syncStatus();
-      showToast({
-        message: localize(
-          isIntegrationReconnectSuccess(statusBeforeConnect)
-            ? 'com_integrations_reconnect_success'
-            : 'com_integrations_connect_success',
-        ),
-        status: 'success',
-      });
-      return true;
+      return connected;
     } catch {
       showToast({
         message: localize('com_integrations_connect_error'),
@@ -116,10 +157,10 @@ export function useNangoConnect({
   }, [
     integrationsEnabled,
     nangoHost,
-    nangoPublicKey,
+    nangoConnectUrl,
     isConnected,
-    connectParamsMutation,
-    confirmMutation,
+    connectSessionMutation,
+    syncMutation,
     providerKey,
     syncStatus,
     showToast,

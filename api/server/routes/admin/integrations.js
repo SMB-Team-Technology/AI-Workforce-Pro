@@ -39,8 +39,6 @@ router.use(requireJwtAuth, requireAdminAccess, superAdminContextMiddleware);
 router.get('/', requireReadIntegrations, handlers.listMyIntegrations);
 router.get('/tenant', requireReadIntegrations, handlers.listTenantIntegrations);
 router.get('/users/:userId', requireReadIntegrations, handlers.listUserIntegrations);
-router.get('/:providerKey/connect-params', requireManageIntegrations, handlers.getConnectParams);
-router.post('/:providerKey/confirm', requireManageIntegrations, handlers.confirmConnection);
 router.delete('/:providerKey', requireManageIntegrations, handlers.disconnectProvider);
 
 module.exports = router;
