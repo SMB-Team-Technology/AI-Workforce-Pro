@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import type { ServerRequest } from '~/types/http';
 import type { IntegrationProviderStatus } from '../providers';
 import * as driveApi from '../googleDrive/driveApi';
+import * as dropboxApi from '../dropbox/dropboxApi';
 import { createAdminIntegrationHandlers, createIntegrationHandlers } from './handlers';
 
 jest.mock('@librechat/data-schemas', () => ({
@@ -194,6 +195,30 @@ describe('createIntegrationHandlers', () => {
       files: [{ id: 'file-1', name: 'Budget.xlsx', mimeType: 'application/vnd.ms-excel' }],
     });
     expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'google-drive');
+  });
+
+  it('searches Dropbox files for connected users', async () => {
+    const nangoService = createMockNangoService();
+    const handlers = createIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { providerKey: 'dropbox' },
+    });
+    req.query = { query: 'contract', pageSize: '5' };
+
+    jest.spyOn(dropboxApi, 'searchDropboxFiles').mockResolvedValue({
+      files: [{ id: 'id:file-1', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+
+    await handlers.searchProviderFiles(req, res);
+
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({
+      files: [{ id: 'id:file-1', name: 'contract.pdf', mimeType: 'application/pdf' }],
+    });
+    expect(nangoService.getProviderAccessToken).toHaveBeenCalledWith(mockUser, 'dropbox');
   });
 });
 

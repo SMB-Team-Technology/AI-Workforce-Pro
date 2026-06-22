@@ -8,6 +8,7 @@ import {
   getGoogleCalendarEvent,
   listGoogleCalendarEvents,
 } from '../googleCalendar/calendarApi';
+import { downloadDropboxFile, searchDropboxFiles } from '../dropbox/dropboxApi';
 import {
   buildGoogleDriveFullTextQuery,
   downloadGoogleDriveFile,
@@ -15,6 +16,7 @@ import {
 } from '../googleDrive/driveApi';
 import { getGmailMessageAsText, searchGmailMessages } from '../googleMail/mailApi';
 import { getIntegrationProvider, isIntegrationProviderKey } from '../providers';
+import type { IntegrationProviderKey } from '../providers';
 import type {
   IntegrationEventsAttachRequest,
   IntegrationFileDownloadRequest,
@@ -22,6 +24,17 @@ import type {
 } from '../types';
 import { INTEGRATION_CONFIRM_NOT_FOUND } from './errors';
 import type { NangoService } from './service';
+
+const INTEGRATION_FILE_SEARCH_PROVIDERS = new Set<IntegrationProviderKey>([
+  'google-drive',
+  'dropbox',
+]);
+
+function isIntegrationFileSearchProviderKey(
+  value: string,
+): value is Extract<IntegrationProviderKey, 'google-drive' | 'dropbox'> {
+  return INTEGRATION_FILE_SEARCH_PROVIDERS.has(value as IntegrationProviderKey);
+}
 
 function getRequestUser(req: ServerRequest): IUser | undefined {
   return req.user;
@@ -234,7 +247,7 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       }
 
       const { providerKey } = req.params as { providerKey: string };
-      if (providerKey !== 'google-drive') {
+      if (!isIntegrationFileSearchProviderKey(providerKey)) {
         return res.status(400).json({ error: 'File search is not supported for this provider' });
       }
 
@@ -248,9 +261,19 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       const pageSize = Number.isFinite(pageSizeRaw) ? pageSizeRaw : 20;
 
       const token = await nangoService.getProviderAccessToken(user, providerKey);
-      const driveQuery = query?.trim() ? buildGoogleDriveFullTextQuery(query) : undefined;
-      const result = await searchGoogleDriveFiles(token.accessToken, {
-        query: driveQuery,
+
+      if (providerKey === 'google-drive') {
+        const driveQuery = query?.trim() ? buildGoogleDriveFullTextQuery(query) : undefined;
+        const result = await searchGoogleDriveFiles(token.accessToken, {
+          query: driveQuery,
+          pageSize,
+          pageToken,
+        });
+        return res.status(200).json(result);
+      }
+
+      const result = await searchDropboxFiles(token.accessToken, {
+        query,
         pageSize,
         pageToken,
       });
@@ -277,7 +300,7 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       }
 
       const { providerKey } = req.params as { providerKey: string };
-      if (providerKey !== 'google-drive') {
+      if (!isIntegrationFileSearchProviderKey(providerKey)) {
         return res.status(400).json({ error: 'File download is not supported for this provider' });
       }
 
@@ -293,7 +316,10 @@ export function createIntegrationHandlers(deps: IntegrationHandlersDeps) {
       const token = await nangoService.getProviderAccessToken(user, providerKey);
       const files = await Promise.all(
         body.files.map(async (file) => {
-          const downloaded = await downloadGoogleDriveFile(token.accessToken, file);
+          const downloaded =
+            providerKey === 'google-drive'
+              ? await downloadGoogleDriveFile(token.accessToken, file)
+              : await downloadDropboxFile(token.accessToken, file);
           return {
             fileName: downloaded.fileName,
             mimeType: downloaded.mimeType,

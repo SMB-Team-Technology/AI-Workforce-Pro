@@ -26,6 +26,12 @@ jest.mock('~/hooks/Files/useGoogleDriveFileHandling', () => ({
   useGoogleDriveFileHandlingNoChatContext: jest.fn(),
 }));
 
+jest.mock('~/hooks/Files/useDropboxFileHandling', () => ({
+  __esModule: true,
+  default: jest.fn(),
+  useDropboxFileHandlingNoChatContext: jest.fn(),
+}));
+
 jest.mock('~/hooks/Files/useIntegrationTextAttachHandling', () => ({
   __esModule: true,
   default: jest.fn(),
@@ -47,6 +53,7 @@ jest.mock('~/components/Integrations', () => {
   return {
     ConnectProviderPrompt: () => null,
     GoogleDrivePickerDialog: () => null,
+    DropboxPickerDialog: () => null,
     GmailPickerDialog: () => null,
     GoogleCalendarPickerDialog: () => null,
     INTEGRATION_ATTACH_MENU: {
@@ -56,6 +63,15 @@ jest.mock('~/components/Integrations', () => {
       },
     },
     INTEGRATION_PICKER_PROVIDER_KEYS: new Set(['google-drive', 'google-mail', 'google-calendar']),
+    getIntegrationAttachMenuLabelKey: (providerKey: string, isConnected: boolean) => {
+      if (providerKey === 'google-drive' && isConnected) {
+        return 'com_files_upload_google_drive';
+      }
+      if (providerKey === 'google-drive') {
+        return 'com_files_upload_google_drive';
+      }
+      return 'com_files_upload_google_drive';
+    },
   };
 });
 
@@ -142,6 +158,9 @@ const mockUseSharePointFileHandlingNoChatContext = jest.requireMock(
 const mockUseGoogleDriveFileHandlingNoChatContext = jest.requireMock(
   '~/hooks/Files/useGoogleDriveFileHandling',
 ).useGoogleDriveFileHandlingNoChatContext;
+const mockUseDropboxFileHandlingNoChatContext = jest.requireMock(
+  '~/hooks/Files/useDropboxFileHandling',
+).useDropboxFileHandlingNoChatContext;
 const mockUseIntegrationTextAttachHandlingNoChatContext = jest.requireMock(
   '~/hooks/Files/useIntegrationTextAttachHandling',
 ).useIntegrationTextAttachHandlingNoChatContext;
@@ -181,6 +200,11 @@ function setupMocks(overrides: { provider?: string } = {}) {
   mockUseSharePointFileHandlingNoChatContext.mockReturnValue(sharePointReturnValue);
   mockUseGoogleDriveFileHandlingNoChatContext.mockReturnValue({
     handleGoogleDriveFiles: jest.fn(),
+    isProcessing: false,
+    error: null,
+  });
+  mockUseDropboxFileHandlingNoChatContext.mockReturnValue({
+    handleDropboxFiles: jest.fn(),
     isProcessing: false,
     error: null,
   });

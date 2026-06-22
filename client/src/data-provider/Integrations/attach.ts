@@ -68,6 +68,31 @@ export const useDownloadGoogleDriveFilesMutation = (): UseMutationResult<
   return useMutation((files) => dataService.downloadIntegrationFiles('google-drive', files));
 };
 
+export const useDropboxFilesQuery = (
+  params: { query?: string; pageToken?: string; pageSize?: number; enabled?: boolean },
+  config?: UseQueryOptions<t.GoogleDriveSearchResponse>,
+) => {
+  const { enabled = true, ...searchParams } = params;
+  return useQuery<t.GoogleDriveSearchResponse>(
+    [QueryKeys.integrations, 'dropbox', 'files', searchParams],
+    () => dataService.searchIntegrationFiles('dropbox', searchParams),
+    {
+      enabled,
+      staleTime: 30 * 1000,
+      keepPreviousData: true,
+      ...config,
+    },
+  );
+};
+
+export const useDownloadDropboxFilesMutation = (): UseMutationResult<
+  t.IntegrationFilesDownloadResponse,
+  Error,
+  Array<{ id: string; name: string; mimeType: string }>
+> => {
+  return useMutation((files) => dataService.downloadIntegrationFiles('dropbox', files));
+};
+
 export const useAttachGmailMessagesMutation = (): UseMutationResult<
   t.IntegrationFilesDownloadResponse,
   Error,

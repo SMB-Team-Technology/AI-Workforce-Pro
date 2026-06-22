@@ -73,7 +73,6 @@ const Menu: React.FC<MenuProps> = ({
   preserveTabOrder,
   ...props
 }) => {
-  const menuStore = Ariakit.useMenuStore();
   const menu = Ariakit.useMenuContext();
   return (
     <Ariakit.Menu
@@ -97,10 +96,7 @@ const Menu: React.FC<MenuProps> = ({
           }
           if (subItems && subItems.length > 0) {
             return (
-              <Ariakit.MenuProvider
-                store={menuStore}
-                key={`${keyPrefix ?? ''}${index}-${item.id ?? ''}-provider`}
-              >
+              <Ariakit.MenuProvider key={`${keyPrefix ?? ''}${index}-${item.id ?? ''}-provider`}>
                 <Ariakit.MenuButton
                   className={cn(
                     'group flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-3.5 text-sm text-text-primary outline-none hover:bg-surface-hover focus:bg-surface-hover md:px-2.5 md:py-2',

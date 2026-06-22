@@ -1,3 +1,5 @@
+import { inferMimeType } from 'librechat-data-provider';
+
 export interface GoogleDriveFileSummary {
   id: string;
   name: string;
@@ -94,6 +96,11 @@ export function buildGoogleDriveFullTextQuery(searchTerm: string): string {
   return `fullText contains '${escapeDriveQueryValue(trimmed)}'`;
 }
 
+function resolveGoogleDriveMimeType(fileName: string, reportedMimeType?: string | null): string {
+  const normalizedReported = reportedMimeType?.split(';')[0]?.trim() ?? '';
+  return inferMimeType(fileName, normalizedReported);
+}
+
 export async function downloadGoogleDriveFile(
   accessToken: string,
   file: Pick<GoogleDriveFileSummary, 'id' | 'name' | 'mimeType'>,
@@ -116,8 +123,9 @@ export async function downloadGoogleDriveFile(
 
   const buffer = await response.arrayBuffer();
   const fileName = exportConfig ? `${file.name}${exportConfig.extension}` : file.name;
-  const mimeType =
-    exportConfig?.mimeType ?? response.headers.get('content-type') ?? 'application/octet-stream';
+  const reportedMimeType =
+    exportConfig?.mimeType ?? response.headers.get('content-type') ?? file.mimeType ?? '';
+  const mimeType = resolveGoogleDriveMimeType(fileName, reportedMimeType);
 
   return { buffer, fileName, mimeType };
 }

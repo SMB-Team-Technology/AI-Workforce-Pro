@@ -44,15 +44,18 @@ import {
 } from '~/hooks';
 import { useSharePointFileHandlingNoChatContext } from '~/hooks/Files/useSharePointFileHandling';
 import { useGoogleDriveFileHandlingNoChatContext } from '~/hooks/Files/useGoogleDriveFileHandling';
+import { useDropboxFileHandlingNoChatContext } from '~/hooks/Files/useDropboxFileHandling';
 import { useIntegrationTextAttachHandlingNoChatContext } from '~/hooks/Files/useIntegrationTextAttachHandling';
 import { SharePointPickerDialog } from '~/components/SharePoint';
 import {
   ConnectProviderPrompt,
+  DropboxPickerDialog,
   GmailPickerDialog,
   GoogleCalendarPickerDialog,
   GoogleDrivePickerDialog,
   INTEGRATION_ATTACH_MENU,
   INTEGRATION_PICKER_PROVIDER_KEYS,
+  getIntegrationAttachMenuLabelKey,
 } from '~/components/Integrations';
 import { useGetStartupConfig, useIntegrationsQuery } from '~/data-provider';
 import { ephemeralAgentByConvoId } from '~/store';
@@ -117,6 +120,11 @@ const AttachFileMenu = ({
     );
   const { handleGoogleDriveFiles, isProcessing: isDriveProcessing } =
     useGoogleDriveFileHandlingNoChatContext(
+      { toolResource: toolResourceRef.current },
+      { files, setFiles, setFilesLoading, conversation },
+    );
+  const { handleDropboxFiles, isProcessing: isDropboxProcessing } =
+    useDropboxFileHandlingNoChatContext(
       { toolResource: toolResourceRef.current },
       { files, setFiles, setFilesLoading, conversation },
     );
@@ -223,6 +231,11 @@ const AttachFileMenu = ({
   const openDrivePicker = useCallback(() => {
     closeAttachMenu();
     setActiveIntegrationPicker('google-drive');
+  }, [closeAttachMenu]);
+
+  const openDropboxPicker = useCallback(() => {
+    closeAttachMenu();
+    setActiveIntegrationPicker('dropbox');
   }, [closeAttachMenu]);
 
   const dropdownItems = useMemo(() => {
@@ -336,15 +349,13 @@ const AttachFileMenu = ({
         }
 
         const isConnected = isIntegrationConnected(integration.status);
-        if (isConnected && !INTEGRATION_PICKER_PROVIDER_KEYS.has(integration.providerKey)) {
-          continue;
-        }
-
         const providerKey = integration.providerKey;
-        const { menuLabelKey, Icon } = menuConfig;
+        const { Icon } = menuConfig;
+        const menuLabelKey = getIntegrationAttachMenuLabelKey(providerKey, isConnected);
 
         if (providerKey === 'google-drive' && isConnected) {
           localItems.push({
+            id: 'integration-google-drive',
             label: localize(menuLabelKey as Parameters<typeof localize>[0]),
             onClick: () => {},
             icon: <Icon className="icon-md" />,
@@ -353,10 +364,29 @@ const AttachFileMenu = ({
           continue;
         }
 
+        if (providerKey === 'dropbox' && isConnected) {
+          localItems.push({
+            id: 'integration-dropbox',
+            label: localize(menuLabelKey as Parameters<typeof localize>[0]),
+            onClick: () => {},
+            icon: <Icon className="icon-md" />,
+            subItems: createMenuItems(openDropboxPicker),
+          });
+          continue;
+        }
+
         localItems.push({
           label: localize(menuLabelKey as Parameters<typeof localize>[0]),
           onClick: () => {
             if (isConnected) {
+              if (!INTEGRATION_PICKER_PROVIDER_KEYS.has(providerKey)) {
+                closeAttachMenu();
+                showToast({
+                  message: localize('com_integrations_picker_coming_soon'),
+                  status: 'info',
+                });
+                return;
+              }
               if (providerKey === 'google-mail' || providerKey === 'google-calendar') {
                 toolResourceRef.current = EToolResources.context;
               }
@@ -403,8 +433,10 @@ const AttachFileMenu = ({
     fileSearchAllowedByAgent,
     closeAttachMenu,
     openDrivePicker,
+    openDropboxPicker,
     setIsSharePointDialogOpen,
     setActiveIntegrationPicker,
+    showToast,
   ]);
 
   const menuTrigger = (
@@ -459,6 +491,19 @@ const AttachFileMenu = ({
     } catch (error) {
       console.error('Google Drive file processing error:', error);
       handleIntegrationAttachError(error, 'google-drive');
+    }
+  };
+
+  const handleDropboxFilesSelected = async (
+    dropboxFiles: Parameters<typeof handleDropboxFiles>[0],
+  ) => {
+    closeAttachMenu();
+    try {
+      await handleDropboxFiles(dropboxFiles);
+      setActiveIntegrationPicker(null);
+    } catch (error) {
+      console.error('Dropbox file processing error:', error);
+      handleIntegrationAttachError(error, 'dropbox');
     }
   };
 
@@ -523,6 +568,19 @@ const AttachFileMenu = ({
         isAttaching={isDriveProcessing}
         maxSelectionCount={endpointFileConfig?.fileLimit}
         onReconnect={() => openIntegrationReconnect('google-drive')}
+      />
+      <DropboxPickerDialog
+        isOpen={activeIntegrationPicker === 'dropbox'}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeAttachMenu();
+            setActiveIntegrationPicker(null);
+          }
+        }}
+        onFilesSelected={handleDropboxFilesSelected}
+        isAttaching={isDropboxProcessing}
+        maxSelectionCount={endpointFileConfig?.fileLimit}
+        onReconnect={() => openIntegrationReconnect('dropbox')}
       />
       <GmailPickerDialog
         isOpen={activeIntegrationPicker === 'google-mail'}

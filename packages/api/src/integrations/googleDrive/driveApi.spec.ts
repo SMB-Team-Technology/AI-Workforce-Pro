@@ -89,4 +89,21 @@ describe('downloadGoogleDriveFile', () => {
       expect.any(Object),
     );
   });
+
+  it('infers MIME type from the file name when Drive returns octet-stream', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      headers: { get: () => 'application/octet-stream' },
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    } as unknown as Response);
+
+    const result = await downloadGoogleDriveFile('token-123', {
+      id: 'file-1',
+      name: 'contract.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    expect(result.fileName).toBe('contract.pdf');
+    expect(result.mimeType).toBe('application/pdf');
+  });
 });

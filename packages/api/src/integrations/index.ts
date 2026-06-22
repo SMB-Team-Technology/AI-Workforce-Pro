@@ -43,6 +43,12 @@ export type {
   GoogleDriveSearchOptions,
   GoogleDriveSearchResult,
 } from './googleDrive/driveApi';
+export { downloadDropboxFile, searchDropboxFiles } from './dropbox/dropboxApi';
+export type {
+  DropboxFileSummary,
+  DropboxSearchOptions,
+  DropboxSearchResult,
+} from './dropbox/dropboxApi';
 export { getGmailMessageAsText, searchGmailMessages } from './googleMail/mailApi';
 export type {
   GmailMessageSummary,
