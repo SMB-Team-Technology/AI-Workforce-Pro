@@ -39,6 +39,7 @@ import {
   useAgentCapabilities,
   useGetAgentsConfig,
   useFileHandlingNoChatContext,
+  useIntegrationConnectors,
   useLocalize,
 } from '~/hooks';
 import { useSharePointFileHandlingNoChatContext } from '~/hooks/Files/useSharePointFileHandling';
@@ -51,9 +52,9 @@ import {
   GoogleCalendarPickerDialog,
   GoogleDrivePickerDialog,
   INTEGRATION_ATTACH_MENU,
+  INTEGRATION_PICKER_PROVIDER_KEYS,
 } from '~/components/Integrations';
 import { useGetStartupConfig, useIntegrationsQuery } from '~/data-provider';
-import { useNangoConnect } from '~/hooks';
 import { ephemeralAgentByConvoId } from '~/store';
 import { MenuItemProps } from '~/common';
 import { cn } from '~/utils';
@@ -140,27 +141,7 @@ const AttachFileMenu = ({
     null,
   );
 
-  const googleDriveConnect = useNangoConnect({
-    providerKey: 'google-drive',
-    enabled: integrationsEnabled,
-  });
-  const googleMailConnect = useNangoConnect({
-    providerKey: 'google-mail',
-    enabled: integrationsEnabled,
-  });
-  const googleCalendarConnect = useNangoConnect({
-    providerKey: 'google-calendar',
-    enabled: integrationsEnabled,
-  });
-
-  const integrationConnectors = useMemo(
-    () => ({
-      'google-drive': googleDriveConnect,
-      'google-mail': googleMailConnect,
-      'google-calendar': googleCalendarConnect,
-    }),
-    [googleDriveConnect, googleMailConnect, googleCalendarConnect],
-  );
+  const integrationConnectors = useIntegrationConnectors(integrationsEnabled);
 
   const connectPromptConnector = connectPromptProvider
     ? integrationConnectors[connectPromptProvider]
@@ -355,6 +336,10 @@ const AttachFileMenu = ({
         }
 
         const isConnected = isIntegrationConnected(integration.status);
+        if (isConnected && !INTEGRATION_PICKER_PROVIDER_KEYS.has(integration.providerKey)) {
+          continue;
+        }
+
         const providerKey = integration.providerKey;
         const { menuLabelKey, Icon } = menuConfig;
 

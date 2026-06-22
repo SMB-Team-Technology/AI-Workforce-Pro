@@ -11,7 +11,7 @@ jest.mock('~/hooks', () => ({
   useGetAgentsConfig: jest.fn(),
   useFileHandlingNoChatContext: jest.fn(),
   useLocalize: jest.fn(),
-  useNangoConnect: jest.fn(),
+  useIntegrationConnectors: jest.fn(),
 }));
 
 jest.mock('~/hooks/Files/useSharePointFileHandling', () => ({
@@ -55,6 +55,7 @@ jest.mock('~/components/Integrations', () => {
         Icon: () => R.createElement('span', { 'data-testid': 'google-drive-icon' }),
       },
     },
+    INTEGRATION_PICKER_PROVIDER_KEYS: new Set(['google-drive', 'google-mail', 'google-calendar']),
   };
 });
 
@@ -146,12 +147,13 @@ const mockUseIntegrationTextAttachHandlingNoChatContext = jest.requireMock(
 ).useIntegrationTextAttachHandlingNoChatContext;
 const mockUseGetStartupConfig = jest.requireMock('~/data-provider').useGetStartupConfig;
 const mockUseIntegrationsQuery = jest.requireMock('~/data-provider').useIntegrationsQuery;
-const mockUseNangoConnect = jest.requireMock('~/hooks').useNangoConnect;
+const mockUseIntegrationConnectors = jest.requireMock('~/hooks').useIntegrationConnectors;
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 function setupMocks(overrides: { provider?: string } = {}) {
   const translations: Record<string, string> = {
+    com_files_upload_google_drive: 'From Google Drive',
     com_files_upload_sharepoint: 'Upload from SharePoint',
     com_files_upload_google_drive: 'From Google Drive',
     com_sidepanel_attach_files: 'Attach Files',
@@ -192,11 +194,22 @@ function setupMocks(overrides: { provider?: string } = {}) {
     data: { sharePointFilePickerEnabled: false, integrationsEnabled: false },
   });
   mockUseIntegrationsQuery.mockReturnValue({ data: { integrations: [] } });
-  mockUseNangoConnect.mockReturnValue({
+  const integrationConnector = {
     ensureConnected: jest.fn().mockResolvedValue(false),
     isConnected: false,
     isConnecting: false,
     connect: jest.fn(),
+    labelKey: 'com_integrations_google_drive',
+    status: 'not_connected',
+  };
+  mockUseIntegrationConnectors.mockReturnValue({
+    'google-drive': integrationConnector,
+    'google-mail': integrationConnector,
+    'google-calendar': integrationConnector,
+    microsoft: integrationConnector,
+    dropbox: integrationConnector,
+    box: integrationConnector,
+    clio: integrationConnector,
   });
   mockUseAgentToolPermissions.mockReturnValue({
     fileSearchAllowedByAgent: false,

@@ -65,28 +65,28 @@ export const INTEGRATION_PROVIDERS: Record<IntegrationProviderKey, IntegrationPr
     nangoIntegrationId: 'microsoft',
     labelKey: 'com_integrations_microsoft',
     icon: 'microsoft',
-    enabled: false,
+    enabled: true,
   },
   [IntegrationProviderKey.DROPBOX]: {
     key: IntegrationProviderKey.DROPBOX,
     nangoIntegrationId: 'dropbox',
     labelKey: 'com_integrations_dropbox',
     icon: 'dropbox',
-    enabled: false,
+    enabled: true,
   },
   [IntegrationProviderKey.BOX]: {
     key: IntegrationProviderKey.BOX,
     nangoIntegrationId: 'box',
     labelKey: 'com_integrations_box',
     icon: 'box',
-    enabled: false,
+    enabled: true,
   },
   [IntegrationProviderKey.CLIO]: {
     key: IntegrationProviderKey.CLIO,
     nangoIntegrationId: 'clio',
     labelKey: 'com_integrations_clio',
     icon: 'clio',
-    enabled: false,
+    enabled: true,
   },
 };
 

@@ -1,9 +1,15 @@
 import type { ComponentType } from 'react';
-import { Calendar, Mail } from 'lucide-react';
+import { Briefcase, Calendar, LayoutGrid, Mail, Package } from 'lucide-react';
 import { GoogleMinimalIcon } from '@librechat/client';
 import type { IntegrationProviderKey } from 'librechat-data-provider';
 
 type AttachMenuIcon = ComponentType<{ className?: string }>;
+
+export const INTEGRATION_PICKER_PROVIDER_KEYS = new Set<IntegrationProviderKey>([
+  'google-drive',
+  'google-mail',
+  'google-calendar',
+]);
 
 export const INTEGRATION_ATTACH_MENU: Partial<
   Record<IntegrationProviderKey, { menuLabelKey: string; Icon: AttachMenuIcon }>
@@ -19,6 +25,22 @@ export const INTEGRATION_ATTACH_MENU: Partial<
   'google-calendar': {
     menuLabelKey: 'com_files_upload_google_calendar',
     Icon: Calendar,
+  },
+  microsoft: {
+    menuLabelKey: 'com_files_upload_microsoft',
+    Icon: LayoutGrid,
+  },
+  dropbox: {
+    menuLabelKey: 'com_files_upload_dropbox',
+    Icon: Package,
+  },
+  box: {
+    menuLabelKey: 'com_files_upload_box',
+    Icon: Package,
+  },
+  clio: {
+    menuLabelKey: 'com_files_upload_clio',
+    Icon: Briefcase,
   },
 };
 
