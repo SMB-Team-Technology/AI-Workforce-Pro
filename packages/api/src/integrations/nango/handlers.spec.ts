@@ -69,6 +69,7 @@ function createMockNangoService() {
     listTenantConnections: jest.fn().mockResolvedValue([]),
     syncUserConnectionsFromNango: jest.fn().mockResolvedValue(undefined),
     upsertNangoConnection: jest.fn(),
+    processAuthWebhook: jest.fn().mockResolvedValue(undefined),
   };
 }
 
