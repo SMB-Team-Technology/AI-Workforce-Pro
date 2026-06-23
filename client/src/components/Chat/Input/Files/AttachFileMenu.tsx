@@ -8,8 +8,6 @@ import {
   FileType2Icon,
   FileImageIcon,
   TerminalSquareIcon,
-  Calendar,
-  Mail,
 } from 'lucide-react';
 import {
   FileUpload,
@@ -23,7 +21,6 @@ import {
   Providers,
   EToolResources,
   EModelEndpoint,
-  isIntegrationConnected,
   isPermissiveMimeConfig,
   defaultAgentCapabilities,
   bedrockDocumentExtensions,
@@ -63,9 +60,7 @@ import {
   MicrosoftOneDrivePickerDialog,
   MicrosoftOutlookMailPickerDialog,
   MicrosoftOutlookCalendarPickerDialog,
-  INTEGRATION_ATTACH_MENU,
-  INTEGRATION_PICKER_PROVIDER_KEYS,
-  getIntegrationAttachMenuLabelKey,
+  buildAttachIntegrationMenuItems,
 } from '~/components/Integrations';
 import { useGetStartupConfig, useIntegrationsQuery } from '~/data-provider';
 import { ephemeralAgentByConvoId } from '~/store';
@@ -389,130 +384,73 @@ const AttachFileMenu = ({
       return items;
     };
 
-    const localItems = createMenuItems(handleUploadClick);
+    const uploadItems = createMenuItems(handleUploadClick);
+    const localItems: MenuItemProps[] = [
+      {
+        id: 'section-upload',
+        header: true,
+        label: localize('com_attach_menu_section_upload'),
+      },
+      ...uploadItems,
+    ];
 
     if (integrationsEnabled) {
-      for (const integration of integrationsList?.integrations ?? []) {
-        if (!integration.enabled) {
-          continue;
-        }
-
-        const menuConfig = INTEGRATION_ATTACH_MENU[integration.providerKey];
-        if (!menuConfig) {
-          continue;
-        }
-
-        const isConnected = isIntegrationConnected(integration.status);
-        const providerKey = integration.providerKey;
-        const { Icon } = menuConfig;
-        const menuLabelKey = getIntegrationAttachMenuLabelKey(providerKey, isConnected);
-
-        if (providerKey === 'google-drive' && isConnected) {
-          localItems.push({
-            id: 'integration-google-drive',
-            label: localize(menuLabelKey as Parameters<typeof localize>[0]),
+      const sharePointItem = sharePointEnabled
+        ? {
+            id: 'integration-sharepoint',
+            label: localize('com_files_upload_sharepoint'),
             onClick: () => {},
-            icon: <Icon className="icon-md" />,
-            subItems: createMenuItems(openDrivePicker),
-          });
-          continue;
-        }
-
-        if (providerKey === 'dropbox' && isConnected) {
-          localItems.push({
-            id: 'integration-dropbox',
-            label: localize(menuLabelKey as Parameters<typeof localize>[0]),
-            onClick: () => {},
-            icon: <Icon className="icon-md" />,
-            subItems: createMenuItems(openDropboxPicker),
-          });
-          continue;
-        }
-
-        if (providerKey === 'box' && isConnected) {
-          localItems.push({
-            id: 'integration-box',
-            label: localize(menuLabelKey as Parameters<typeof localize>[0]),
-            onClick: () => {},
-            icon: <Icon className="icon-md" />,
-            subItems: createMenuItems(openBoxPicker),
-          });
-          continue;
-        }
-
-        if (providerKey === 'clio' && isConnected) {
-          localItems.push({
-            id: 'integration-clio',
-            label: localize(menuLabelKey as Parameters<typeof localize>[0]),
-            onClick: () => {},
-            icon: <Icon className="icon-md" />,
-            subItems: createMenuItems(openClioPicker),
-          });
-          continue;
-        }
-
-        if (providerKey === 'microsoft' && isConnected) {
-          localItems.push({
-            id: 'integration-microsoft-onedrive',
-            label: localize('com_files_from_microsoft_onedrive'),
-            onClick: () => {},
-            icon: <Icon className="icon-md" />,
-            subItems: createMenuItems(openMicrosoftOneDrivePicker),
-          });
-          localItems.push({
-            id: 'integration-microsoft-mail',
-            label: localize('com_files_from_outlook_mail'),
-            onClick: openMicrosoftOutlookMailPicker,
-            icon: <Mail className="icon-md" />,
-          });
-          localItems.push({
-            id: 'integration-microsoft-calendar',
-            label: localize('com_files_from_outlook_calendar'),
-            onClick: openMicrosoftOutlookCalendarPicker,
-            icon: <Calendar className="icon-md" />,
-          });
-          continue;
-        }
-
-        localItems.push({
-          label: localize(menuLabelKey as Parameters<typeof localize>[0]),
-          onClick: () => {
-            if (isConnected) {
-              if (!INTEGRATION_PICKER_PROVIDER_KEYS.has(providerKey)) {
-                closeAttachMenu();
-                showToast({
-                  message: localize('com_integrations_picker_coming_soon'),
-                  status: 'info',
-                });
-                return;
-              }
-              if (providerKey === 'google-mail' || providerKey === 'google-calendar') {
-                toolResourceRef.current = EToolResources.context;
-              }
+            icon: <SharePointIcon className="icon-md" />,
+            subItems: createMenuItems(() => {
               closeAttachMenu();
-              setActiveIntegrationPicker(providerKey);
-              return;
-            }
-            closeAttachMenu();
-            setConnectPromptProvider(providerKey);
-          },
-          icon: <Icon className="icon-md" />,
-        });
-      }
-    }
+              setIsSharePointDialogOpen(true);
+            }),
+          }
+        : undefined;
 
-    if (sharePointEnabled) {
-      const sharePointItems = createMenuItems(() => {
-        closeAttachMenu();
-        setIsSharePointDialogOpen(true);
+      localItems.push(
+        ...buildAttachIntegrationMenuItems({
+          integrations: integrationsList?.integrations ?? [],
+          createFileTypeSubItems: createMenuItems,
+          localize,
+          closeAttachMenu,
+          setActiveIntegrationPicker,
+          setConnectPromptProvider,
+          openDrivePicker,
+          openDropboxPicker,
+          openBoxPicker,
+          openClioPicker,
+          openMicrosoftOneDrivePicker,
+          openMicrosoftOutlookMailPicker,
+          openMicrosoftOutlookCalendarPicker,
+          setToolResourceContext: () => {
+            toolResourceRef.current = EToolResources.context;
+          },
+          showComingSoonToast: () => {
+            showToast({
+              message: localize('com_integrations_picker_coming_soon'),
+              status: 'info',
+            });
+          },
+          sharePointItem,
+        }),
+      );
+    } else if (sharePointEnabled) {
+      localItems.push({ separate: true });
+      localItems.push({
+        id: 'section-cloud',
+        header: true,
+        label: localize('com_attach_menu_section_cloud'),
       });
       localItems.push({
         label: localize('com_files_upload_sharepoint'),
         onClick: () => {},
         icon: <SharePointIcon className="icon-md" />,
-        subItems: sharePointItems,
+        subItems: createMenuItems(() => {
+          closeAttachMenu();
+          setIsSharePointDialogOpen(true);
+        }),
       });
-      return localItems;
     }
 
     return localItems;
@@ -697,7 +635,7 @@ const AttachFileMenu = ({
       >
         <DropdownPopup
           menuId="attach-file-menu"
-          className="overflow-visible"
+          className="min-w-56 overflow-y-auto overflow-x-hidden"
           isOpen={isPopoverActive}
           setIsOpen={setIsPopoverActive}
           modal={true}

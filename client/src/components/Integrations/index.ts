@@ -1,3 +1,5 @@
+export { buildAttachIntegrationMenuItems } from './buildAttachIntegrationMenuItems';
+export { IntegrationProviderIcon } from './IntegrationProviderIcon';
 export { ConnectProviderPrompt } from './ConnectProviderPrompt';
 export { IntegrationStatusChip } from './IntegrationStatusChip';
 export {

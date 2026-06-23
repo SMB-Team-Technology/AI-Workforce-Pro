@@ -1,10 +1,10 @@
 # Nango OAuth Integrations — Architecture & Implementation Plan
 
-**Status:** Connect UI + file/mail/calendar attach pickers (Google, Microsoft, Dropbox, Box, Clio)  
+**Status:** Connect UI + attach pickers for all seven registry providers (Google, Microsoft, Dropbox, Box, Clio)  
 **Feature branch (both repos):** `feat/nango-integration-providers`  
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-23
 
-This document is the single source of truth for integrating external services (Google Drive, Gmail, Google Calendar, Microsoft, Dropbox, Box, Clio) via [Nango](https://nango.dev) in LibreChat and the Admin Panel.
+**Branch state (local, not pushed):** implementation complete on branch; **2 commits** ahead of `origin` in `AI-Workforce-Pro`, **1 commit** ahead in Admin Panel. See [Pending work](#pending-work).
 
 ---
 
@@ -121,21 +121,45 @@ One Nango integration covers OneDrive, Outlook Mail, and Outlook Calendar. Typic
 | `Mail.Read` / `Mail.Send` | Outlook mail search + attach (read is sufficient for attach) |
 | `Calendars.Read` / `Calendars.ReadWrite` | Outlook calendar list + attach (read is sufficient for attach) |
 
-### Box scopes (Nango integration `box`)
+### Box — OAuth scopes (Nango integration `box`)
+
+Box uses **traditional OAuth scopes**. Configure them in **both** Nango and the Box Developer Console.
 
 | Scope | Used for |
 |-------|----------|
 | `root_readonly` | List, search, and download files in the user's Box account |
 
-Configure in the Box Developer Console and Nango dashboard OAuth settings.
+| Where | What to set |
+|-------|-------------|
+| **Nango** (`box` integration) | Scopes: `root_readonly` · Callback URL: `https://nango.smbteam.com/oauth/callback` |
+| **Box Developer Console** | Same redirect URI (exact match) · Application scope: **Read all files and folders stored in Box** |
 
-### Clio scopes (Nango integration `clio`)
+LibreChat does **not** send scopes at connect time — Nango includes them in the OAuth authorize URL from the integration settings.
 
-| Scope | Used for |
-|-------|----------|
-| `Documents (read)` | List, search, and download documents in the user's Clio account |
+### Clio — app-level permissions (Nango integration `clio`)
 
-MVP covers **documents only** — no mail or calendar attach.
+Clio uses **app-level access permissions**, not OAuth scopes in Nango. Permissions are chosen once when the developer application is created in the [Clio Developer Portal](https://docs.developers.clio.com/api-docs/clio-manage/permissions/) and cannot be extended via the Nango **Scopes** field.
+
+| Permission (Clio app settings) | Used for |
+|--------------------------------|----------|
+| **Documents → Read** | List, search, and download documents via Clio API v4 (`/api/v4/documents`) |
+
+| Where | What to set |
+|-------|-------------|
+| **Clio Developer Portal** | **Documents (read)** when creating/editing the OAuth app · Redirect URI = Nango callback URL |
+| **Nango** (`clio` integration) | Client ID + Secret · **Leave Scopes empty** · Callback URL: `https://nango.smbteam.com/oauth/callback` |
+
+LibreChat does **not** pass scopes in `createConnectSession` — same as Box; only `allowed_integrations` and user tags are sent. For Clio, authorization is limited to whatever permissions were registered on the app at creation time.
+
+MVP covers **documents only** — no mail, calendar, or matters attach.
+
+### Box vs Clio (operator checklist)
+
+| | **Box** | **Clio** |
+|---|---------|----------|
+| Scopes in Nango dashboard | **Yes** — `root_readonly` | **No** — leave empty |
+| Provider console | Box Developer Console (redirect URI + scope) | Clio Developer Portal (app permissions at create time) |
+| LibreChat runtime | Token only → Box API | Token only → Clio API v4 |
 
 ---
 
@@ -244,7 +268,7 @@ sequenceDiagram
 | No unnecessary re-login | Nango refresh; store only `connectionId` locally |
 | Reconnect | Same Connect UI flow; `createReconnectSession` when Mongo has a prior `connectionId` |
 | Connect in context | CTA when attach menu needs a provider — not only a settings page |
-| Drive / Dropbox / OneDrive file destination | When connected, **From …** expands with file-type submenu (like SharePoint) |
+| Drive / Dropbox / Box / Clio / OneDrive file destination | When connected, **From …** expands with file-type submenu (like SharePoint) |
 | Gmail / Calendar / Outlook attach | Menu item → picker → attaches as `tool_resource: context` (`.txt` summaries) |
 | Microsoft multi-surface | One OAuth connection; three attach menu entries when connected |
 
@@ -506,7 +530,7 @@ Dependency: `@nangohq/frontend@^0.70.7`
 | **Connect UI migration** | Both | SDK 0.70.7, connect-session/sync, webhook | **Done** |
 | **PR-6a** | Backend + client | Enable Microsoft, Dropbox, Box, Clio in registry | **Done** |
 | **PR-6b** | Backend + client | Dropbox file picker + MIME inference | **Done** |
-| **PR-6c** | Backend + client | Microsoft OneDrive + Outlook Mail + Outlook Calendar pickers | **Done** (branch; pending commit) |
+| **PR-6c** | Backend + client | Microsoft OneDrive + Outlook Mail + Outlook Calendar pickers | **Done** |
 | **PR-6d** | Backend + client | Box file picker | **Done** |
 | **PR-6e** | Backend + client | Clio document picker | **Done** |
 | **PR-7** | Both | Reconnect UX polish | **Done** |
@@ -515,7 +539,7 @@ Dependency: `@nangohq/frontend@^0.70.7`
 
 ## Adding a new provider
 
-1. Create/configure integration in **Nango dashboard** (OAuth app, scopes).
+1. Create/configure integration in **Nango dashboard** (OAuth app; add **Scopes** only when the provider requires them — see [Box vs Clio](#box-vs-clio-operator-checklist)).
 2. Add entry to `INTEGRATION_PROVIDERS` in `providers.ts` with `enabled: true`.
 3. Add i18n keys + icon in client `attachMenu.ts` and locales (EN/ES).
 4. If the provider exposes files, mail, or calendar:
@@ -555,6 +579,48 @@ Connect-session / sync handler logic is provider-agnostic beyond the registry en
 3. Return to LibreChat and open **From OneDrive** again.
 
 The picker shows a friendly message when Graph returns this 404 (`code: onedrive_not_provisioned`).
+
+### Microsoft org account: “Need admin approval”
+
+**Symptom:** Connect UI shows **Need admin approval** when signing in with a work/school account (e.g. `@company.com`).
+
+**Cause:** The Azure app registration requires **tenant admin consent** before non-admin users can authorize the requested Graph scopes.
+
+**Fix (IT / platform admin):**
+
+1. Open **Azure Portal** → **App registrations** → the app used by Nango `microsoft`.
+2. **API permissions** → **Grant admin consent for [tenant]** (one-time).
+3. User retries Connect UI in LibreChat.
+
+Personal Microsoft accounts (`@outlook.com`, `@hotmail.com`) do not require this step.
+
+### Box: `redirect_uri_mismatch`
+
+**Symptom:** Box shows **Application Error** with `Error: redirect_uri_mismatch` and `redirect_uri=https://nango.smbteam.com/oauth/callback`.
+
+**Cause:** The Box OAuth app's registered redirect URI does not include Nango's callback URL (common when only `https://api.nango.dev/oauth/callback` is listed).
+
+**Fix (DevOps):**
+
+1. Box Developer Console → app matching Nango **Client ID** → **Configuration**.
+2. Add **`https://nango.smbteam.com/oauth/callback`** under **OAuth 2.0 Redirect URI** (exact match, no trailing slash).
+3. Enable **Read all files and folders stored in Box** (`root_readonly`).
+4. Save, then retry **Connect Box** in LibreChat.
+
+Nango `box` integration should already show the same callback URL and scope `root_readonly`.
+
+### Clio: 403 or empty document list
+
+**Symptom:** Connect succeeds but document search/download returns **403** or an empty list.
+
+**Cause:** The Clio OAuth app was created without **Documents (read)** permission, or the user’s Clio role does not allow document access.
+
+**Fix:**
+
+1. Clio Developer Portal → your app → confirm **Documents (read)** is enabled (app-level permission, not Nango scopes).
+2. Nango `clio` integration → **Scopes** field should remain **empty**.
+3. If permissions were added after users connected, users must **reconnect** so Clio issues a new token.
+4. Retry **From Clio** in LibreChat.
 
 ---
 
@@ -599,11 +665,21 @@ npx jest src/components/Chat/Input/Files/__tests__/AttachFileMenu.spec.tsx --no-
 
 | ID | Scope | Priority |
 |----|-------|----------|
-| **Commit / PR** | Commit Microsoft + Box + Clio work on `feat/nango-integration-providers`, open PR | High |
-| **Release** | Merge branch, env vars + Nango integrations in staging/prod | High |
-| **Manual QA** | End-to-end test with real Microsoft / Dropbox / Box / Clio accounts | Medium |
+| **Push / PR** | Push `feat/nango-integration-providers` on both repos; open PR and review | High |
+| **Release** | Merge branch; set `NANGO_*` env vars and Nango integrations in staging/prod | High |
+| **Manual QA** | End-to-end attach with real Microsoft, Dropbox, Box, and Clio accounts | Medium |
+| **Microsoft org** | Azure **Grant admin consent** for work/school tenants | Medium (IT) |
+| **Box OAuth** | Redirect URI + `root_readonly` in Box Developer Console and Nango | Medium (DevOps) |
+| **Clio permissions** | **Documents (read)** on Clio app at creation; Nango scopes empty | Medium (DevOps) |
 
-Optional polish: Google Picker JS widget, inline send-mail / create-event actions, agent tools for Microsoft Graph.
+### Local commits (awaiting push)
+
+| Repo | Commits ahead of `origin/feat/nango-integration-providers` |
+|------|-------------------------------------------------------------|
+| `AI-Workforce-Pro` | `0042e0293` Dropbox picker + MIME inference · `713d97863` Microsoft, Box, Clio pickers |
+| `AI-Workforce-Pro-Admin-Panel` | `fe6ff9c` docs for Box and Clio pickers |
+
+Optional polish: Google Picker JS widget, inline send-mail / create-event actions, agent tools for Microsoft Graph, Clio calendar/matters attach.
 
 ---
 

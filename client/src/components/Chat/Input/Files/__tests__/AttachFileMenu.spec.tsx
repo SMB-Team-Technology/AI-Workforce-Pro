@@ -68,6 +68,7 @@ jest.mock('~/components/SharePoint', () => ({
 jest.mock('~/components/Integrations', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react');
+  const actual = jest.requireActual('~/components/Integrations/buildAttachIntegrationMenuItems');
   return {
     ConnectProviderPrompt: () => null,
     GoogleDrivePickerDialog: () => null,
@@ -79,6 +80,7 @@ jest.mock('~/components/Integrations', () => {
     MicrosoftOutlookCalendarPickerDialog: () => null,
     GmailPickerDialog: () => null,
     GoogleCalendarPickerDialog: () => null,
+    buildAttachIntegrationMenuItems: actual.buildAttachIntegrationMenuItems,
     INTEGRATION_ATTACH_MENU: {
       'google-drive': {
         menuLabelKey: 'com_files_upload_google_drive',
@@ -91,12 +93,16 @@ jest.mock('~/components/Integrations', () => {
         return 'com_files_upload_google_drive';
       }
       if (providerKey === 'google-drive') {
-        return 'com_files_upload_google_drive';
+        return 'com_files_connect_google_drive';
       }
       return 'com_files_upload_google_drive';
     },
   };
 });
+
+jest.mock('~/components/Integrations/IntegrationProviderIcon', () => ({
+  IntegrationProviderIcon: () => null,
+}));
 
 jest.mock('@librechat/client', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -119,42 +125,49 @@ jest.mock('@librechat/client', () => {
       ),
     ),
     TooltipAnchor: (props) => props.render,
-    DropdownPopup: (props) =>
-      R.createElement(
+    DropdownPopup: (props) => {
+      const renderMenuItems = (items, prefix = 'item', depth = 0) =>
+        items.flatMap((item, idx) => {
+          if (item.separate) {
+            return [];
+          }
+          if (item.header) {
+            return item.label
+              ? [
+                  R.createElement(
+                    'div',
+                    { key: `${prefix}-header-${idx}`, 'data-testid': `menu-header-${item.label}` },
+                    item.label,
+                  ),
+                ]
+              : [];
+          }
+          const testIdPrefix = depth === 0 ? 'menu-item' : 'submenu-item';
+          const nodes = [
+            R.createElement(
+              'button',
+              {
+                key: `${prefix}-${idx}`,
+                onClick: item.onClick,
+                'data-testid': `${testIdPrefix}-${item.label ?? idx}`,
+              },
+              item.label,
+            ),
+          ];
+          if (item.subItems?.length) {
+            nodes.push(...renderMenuItems(item.subItems, `${prefix}-${idx}-sub`, depth + 1));
+          }
+          return nodes;
+        });
+
+      return R.createElement(
         'div',
         null,
         R.createElement('div', { onClick: () => props.setIsOpen(!props.isOpen) }, props.trigger),
         props.isOpen &&
-          R.createElement(
-            'div',
-            { 'data-testid': 'dropdown-menu' },
-            props.items.flatMap((item, idx) => {
-              const nodes = [
-                R.createElement(
-                  'button',
-                  { key: `item-${idx}`, onClick: item.onClick, 'data-testid': `menu-item-${idx}` },
-                  item.label,
-                ),
-              ];
-              if (item.subItems?.length) {
-                for (const [subIdx, subItem] of item.subItems.entries()) {
-                  nodes.push(
-                    R.createElement(
-                      'button',
-                      {
-                        key: `item-${idx}-sub-${subIdx}`,
-                        onClick: subItem.onClick,
-                        'data-testid': `submenu-item-${subItem.label}`,
-                      },
-                      subItem.label,
-                    ),
-                  );
-                }
-              }
-              return nodes;
-            }),
-          ),
-      ),
+          R.createElement('div', { 'data-testid': 'dropdown-menu' }, renderMenuItems(props.items)),
+      );
+    },
     AttachmentIcon: () => R.createElement('span', { 'data-testid': 'attachment-icon' }),
     SharePointIcon: () => R.createElement('span', { 'data-testid': 'sharepoint-icon' }),
     useToastContext: () => ({ showToast: jest.fn() }),
@@ -206,15 +219,19 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false 
 
 function setupMocks(overrides: { provider?: string } = {}) {
   const translations: Record<string, string> = {
-    com_files_upload_google_drive: 'From Google Drive',
-    com_files_upload_sharepoint: 'Upload from SharePoint',
-    com_files_upload_google_drive: 'From Google Drive',
+    com_files_upload_google_drive: 'Google Drive',
+    com_files_connect_google_drive: 'Google Drive',
+    com_files_upload_sharepoint: 'SharePoint',
+    com_attach_menu_section_upload: 'Upload',
+    com_attach_menu_section_cloud: 'Connected accounts',
+    com_attach_menu_google: 'Google',
+    com_files_from_google_drive: 'Google Drive',
     com_sidepanel_attach_files: 'Attach Files',
     com_ui_upload_code_environment: 'Upload to Code Environment',
     com_ui_upload_file_search: 'Upload for File Search',
     com_ui_upload_image_input: 'Upload Image',
     com_ui_upload_ocr_text: 'Upload as Text',
-    com_ui_upload_provider: 'Upload to Provider',
+    com_ui_upload_provider: 'Upload as attachment',
   };
   mockUseLocalize.mockReturnValue((key: string) => translations[key] || key);
   mockUseAgentCapabilities.mockReturnValue({
@@ -317,34 +334,34 @@ function openMenu() {
 describe('AttachFileMenu', () => {
   beforeEach(jest.clearAllMocks);
 
-  describe('Upload to Provider vs Upload Image', () => {
-    it('shows "Upload to Provider" when endpointType is custom (resolved from agent provider)', () => {
+  describe('Upload as attachment vs Upload Image', () => {
+    it('shows "Upload as attachment" when endpointType is custom (resolved from agent provider)', () => {
       setupMocks({ provider: 'Moonshot' });
       renderMenu({ endpointType: EModelEndpoint.custom });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
       expect(screen.queryByText('Upload Image')).not.toBeInTheDocument();
     });
 
-    it('shows "Upload to Provider" when endpointType is openAI', () => {
+    it('shows "Upload as attachment" when endpointType is openAI', () => {
       setupMocks({ provider: EModelEndpoint.openAI });
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
     });
 
-    it('shows "Upload to Provider" when endpointType is anthropic', () => {
+    it('shows "Upload as attachment" when endpointType is anthropic', () => {
       setupMocks({ provider: EModelEndpoint.anthropic });
       renderMenu({ endpointType: EModelEndpoint.anthropic });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
     });
 
-    it('shows "Upload to Provider" when endpointType is google', () => {
+    it('shows "Upload as attachment" when endpointType is google', () => {
       setupMocks({ provider: Providers.GOOGLE });
       renderMenu({ endpointType: EModelEndpoint.google });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
     });
 
     it('shows "Upload Image" when endpointType is agents (no provider resolution)', () => {
@@ -352,7 +369,7 @@ describe('AttachFileMenu', () => {
       renderMenu({ endpointType: EModelEndpoint.agents });
       openMenu();
       expect(screen.getByText('Upload Image')).toBeInTheDocument();
-      expect(screen.queryByText('Upload to Provider')).not.toBeInTheDocument();
+      expect(screen.queryByText('Upload as attachment')).not.toBeInTheDocument();
     });
 
     it('shows "Upload Image" when neither endpointType nor provider supports documents', () => {
@@ -362,14 +379,14 @@ describe('AttachFileMenu', () => {
       expect(screen.getByText('Upload Image')).toBeInTheDocument();
     });
 
-    it('shows "Upload to Provider" for azureOpenAI with useResponsesApi', () => {
+    it('shows "Upload as attachment" for azureOpenAI with useResponsesApi', () => {
       setupMocks({ provider: EModelEndpoint.azureOpenAI });
       renderMenu({ endpointType: EModelEndpoint.azureOpenAI, useResponsesApi: true });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
     });
 
-    it('shows "Upload to Provider" for azureOpenAI endpointType with useResponsesApi', () => {
+    it('shows "Upload as attachment" for azureOpenAI endpointType with useResponsesApi', () => {
       setupMocks();
       renderMenu({
         endpoint: EModelEndpoint.agents,
@@ -377,7 +394,7 @@ describe('AttachFileMenu', () => {
         useResponsesApi: true,
       });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
     });
 
     it('shows "Upload Image" for azureOpenAI without useResponsesApi', () => {
@@ -389,14 +406,14 @@ describe('AttachFileMenu', () => {
   });
 
   describe('agent provider resolution scenario', () => {
-    it('shows "Upload to Provider" when agents endpoint has custom endpointType from provider', () => {
+    it('shows "Upload as attachment" when agents endpoint has custom endpointType from provider', () => {
       setupMocks({ provider: 'Moonshot' });
       renderMenu({
         endpoint: EModelEndpoint.agents,
         endpointType: EModelEndpoint.custom,
       });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
     });
 
     it('shows "Upload Image" when agents endpoint has no resolved provider type', () => {
@@ -503,7 +520,7 @@ describe('AttachFileMenu', () => {
       });
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
-      expect(screen.getByText('Upload to Provider')).toBeInTheDocument();
+      expect(screen.getByText('Upload as attachment')).toBeInTheDocument();
       expect(screen.getByText('Upload as Text')).toBeInTheDocument();
       expect(screen.getByText('Upload for File Search')).toBeInTheDocument();
       expect(screen.getByText('Upload to Code Environment')).toBeInTheDocument();
@@ -539,7 +556,7 @@ describe('AttachFileMenu', () => {
       try {
         renderMenu({ endpointType: EModelEndpoint.openAI });
         openMenu();
-        fireEvent.click(screen.getByText('Upload to Provider'));
+        fireEvent.click(screen.getByText('Upload as attachment'));
         fireEvent.click(screen.getByText('Upload for File Search'));
       } finally {
         HTMLInputElement.prototype.click = originalClick;
@@ -562,14 +579,14 @@ describe('AttachFileMenu', () => {
       });
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
-      expect(screen.getByText('Upload from SharePoint')).toBeInTheDocument();
+      expect(screen.getByText('SharePoint')).toBeInTheDocument();
     });
 
     it('does NOT show SharePoint option when disabled', () => {
       setupMocks();
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
-      expect(screen.queryByText('Upload from SharePoint')).not.toBeInTheDocument();
+      expect(screen.queryByText('SharePoint')).not.toBeInTheDocument();
     });
   });
 
@@ -602,7 +619,8 @@ describe('AttachFileMenu', () => {
       });
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
-      expect(screen.getByText('From Google Drive')).toBeInTheDocument();
+      expect(screen.getByText('Google')).toBeInTheDocument();
+      expect(screen.getByText('Google Drive')).toBeInTheDocument();
       expect(screen.getByTestId('submenu-item-Upload as Text')).toBeInTheDocument();
       expect(screen.getByTestId('submenu-item-Upload to Code Environment')).toBeInTheDocument();
     });
@@ -625,8 +643,9 @@ describe('AttachFileMenu', () => {
       });
       renderMenu({ endpointType: EModelEndpoint.openAI });
       openMenu();
-      expect(screen.getByText('From Google Drive')).toBeInTheDocument();
-      expect(screen.queryByTestId('submenu-item-Upload as Text')).not.toBeInTheDocument();
+      expect(screen.getByText('Google Drive')).toBeInTheDocument();
+      expect(screen.queryByText('Connect another service…')).not.toBeInTheDocument();
+      expect(screen.queryByText('From Google Drive')).not.toBeInTheDocument();
     });
   });
 
