@@ -230,6 +230,11 @@ export function applyModelSpecEphemeralAgent({
     google_drive: modelSpec.googleDrive ?? false,
     google_mail: modelSpec.googleMail ?? false,
     google_calendar: modelSpec.googleCalendar ?? false,
+    microsoft_onedrive: modelSpec.microsoftOneDrive ?? false,
+    microsoft_mail: modelSpec.microsoftMail ?? false,
+    microsoft_calendar: modelSpec.microsoftCalendar ?? false,
+    dropbox: modelSpec.dropbox ?? false,
+    clio: modelSpec.clio ?? false,
     artifacts: modelSpec.artifacts === true ? 'default' : modelSpec.artifacts || '',
   };
 

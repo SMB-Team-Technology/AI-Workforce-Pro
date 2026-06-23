@@ -19,8 +19,21 @@ export interface DropboxSearchOptions {
   pageToken?: string;
 }
 
+export interface CreateDropboxDocumentOptions {
+  title: string;
+  content?: string;
+  folderPath?: string;
+}
+
+export interface DropboxDocumentCreated {
+  id: string;
+  name: string;
+  pathDisplay?: string;
+}
+
 const DROPBOX_API_URL = 'https://api.dropboxapi.com/2';
 const DROPBOX_CONTENT_URL = 'https://content.dropboxapi.com/2';
+const MAX_DOCUMENT_CONTENT_CHARS = 500_000;
 
 type DropboxFileMetadata = {
   '.tag': 'file' | 'folder' | 'deleted';
@@ -178,5 +191,83 @@ export async function downloadDropboxFile(
     buffer,
     fileName: file.name,
     mimeType,
+  };
+}
+
+function sanitizeDocumentFileName(title: string): string {
+  return title
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .split('')
+    .map((char) => (char.charCodeAt(0) < 32 ? '_' : char))
+    .join('')
+    .trim();
+}
+
+function normalizeDocumentTitle(title: string): string {
+  const trimmed = sanitizeDocumentFileName(title);
+  return trimmed || 'Untitled document';
+}
+
+function normalizeDocumentContent(content: string): string {
+  if (content.length <= MAX_DOCUMENT_CONTENT_CHARS) {
+    return content;
+  }
+  return content.slice(0, MAX_DOCUMENT_CONTENT_CHARS);
+}
+
+function resolveDocumentFileName(title: string): string {
+  const base = normalizeDocumentTitle(title);
+  if (/\.[a-z0-9]+$/i.test(base)) {
+    return base;
+  }
+  return `${base}.md`;
+}
+
+function buildDropboxUploadPath(folderPath: string | undefined, fileName: string): string {
+  const normalizedFolder = folderPath?.trim().replace(/\/+$/, '') ?? '';
+  if (!normalizedFolder || normalizedFolder === '/') {
+    return `/${fileName}`;
+  }
+  const folder = normalizedFolder.startsWith('/') ? normalizedFolder : `/${normalizedFolder}`;
+  return `${folder}/${fileName}`;
+}
+
+export async function createDropboxDocument(
+  accessToken: string,
+  options: CreateDropboxDocumentOptions,
+): Promise<DropboxDocumentCreated> {
+  const fileName = resolveDocumentFileName(options.title);
+  const content = normalizeDocumentContent(options.content ?? '');
+  const path = buildDropboxUploadPath(options.folderPath, fileName);
+
+  const response = await fetch(`${DROPBOX_CONTENT_URL}/files/upload`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': JSON.stringify({
+        path,
+        mode: 'add',
+        autorename: true,
+      }),
+    },
+    body: content,
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Dropbox create document failed (${response.status}): ${errorBody}`);
+  }
+
+  const created = (await response.json()) as {
+    id: string;
+    name: string;
+    path_display?: string;
+  };
+
+  return {
+    id: created.id,
+    name: created.name,
+    pathDisplay: created.path_display,
   };
 }

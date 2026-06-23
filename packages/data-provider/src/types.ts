@@ -106,6 +106,11 @@ export type TEphemeralAgent = {
   google_drive?: boolean;
   google_mail?: boolean;
   google_calendar?: boolean;
+  microsoft_onedrive?: boolean;
+  microsoft_mail?: boolean;
+  microsoft_calendar?: boolean;
+  dropbox?: boolean;
+  clio?: boolean;
   artifacts?: string;
   skills?: boolean;
 };
@@ -217,6 +222,8 @@ export type TUser = {
   avatar: string;
   role: string;
   provider: string;
+  tenantId?: string;
+  tenantName?: string;
   plugins?: string[];
   twoFactorEnabled?: boolean;
   backupCodes?: TBackupCode[];

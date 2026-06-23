@@ -795,10 +795,44 @@ export function createAdminIntegrationHandlers(deps: AdminIntegrationHandlersDep
     }
   }
 
+  async function disconnectUserIntegrationHandler(req: ServerRequest, res: Response) {
+    try {
+      const { userId, providerKey } = req.params as { userId: string; providerKey: string };
+      if (!isValidObjectIdString(userId)) {
+        return res.status(400).json({ error: 'Invalid user ID format' });
+      }
+
+      if (!isIntegrationProviderKey(providerKey)) {
+        return res.status(400).json({ error: 'Invalid integration provider' });
+      }
+
+      if (!isNangoConfigured()) {
+        return res.status(503).json({ error: 'Integrations are not configured' });
+      }
+
+      const tenantFilter = getTenantScopedUserFilter(req);
+      const [targetUser] = await findUsers(
+        { _id: userId, ...tenantFilter },
+        'name email tenantId',
+        { limit: 1 },
+      );
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      await nangoService.disconnectProvider(targetUser, providerKey);
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      logger.error('[admin/integrations] disconnectUserIntegration error:', error);
+      return res.status(500).json({ error: 'Failed to disconnect integration' });
+    }
+  }
+
   return {
     listTenantIntegrations: listTenantIntegrationsHandler,
     listUserIntegrations: listUserIntegrationsHandler,
     listMyIntegrations: listMyIntegrationsHandler,
     disconnectProvider: disconnectProviderHandler,
+    disconnectUserIntegration: disconnectUserIntegrationHandler,
   };
 }

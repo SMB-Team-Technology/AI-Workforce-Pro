@@ -79,7 +79,7 @@ export const INTEGRATION_PROVIDERS: Record<IntegrationProviderKey, IntegrationPr
     nangoIntegrationId: 'box',
     labelKey: 'com_integrations_box',
     icon: 'box',
-    enabled: true,
+    enabled: false,
   },
   [IntegrationProviderKey.CLIO]: {
     key: IntegrationProviderKey.CLIO,

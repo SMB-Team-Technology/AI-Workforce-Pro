@@ -40,6 +40,11 @@ export type TModelSpec = {
   googleDrive?: boolean;
   googleMail?: boolean;
   googleCalendar?: boolean;
+  microsoftOneDrive?: boolean;
+  microsoftMail?: boolean;
+  microsoftCalendar?: boolean;
+  dropbox?: boolean;
+  clio?: boolean;
   artifacts?: string | boolean;
   mcpServers?: string[];
 };
@@ -64,6 +69,11 @@ export const tModelSpecSchema = z.object({
   googleDrive: z.boolean().optional(),
   googleMail: z.boolean().optional(),
   googleCalendar: z.boolean().optional(),
+  microsoftOneDrive: z.boolean().optional(),
+  microsoftMail: z.boolean().optional(),
+  microsoftCalendar: z.boolean().optional(),
+  dropbox: z.boolean().optional(),
+  clio: z.boolean().optional(),
   artifacts: z.union([z.string(), z.boolean()]).optional(),
   mcpServers: z.array(z.string()).optional(),
 });

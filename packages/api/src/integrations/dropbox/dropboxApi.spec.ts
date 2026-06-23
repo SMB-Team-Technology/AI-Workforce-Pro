@@ -1,4 +1,4 @@
-import { downloadDropboxFile, searchDropboxFiles } from './dropboxApi';
+import { createDropboxDocument, downloadDropboxFile, searchDropboxFiles } from './dropboxApi';
 
 describe('searchDropboxFiles', () => {
   const originalFetch = global.fetch;
@@ -138,5 +138,51 @@ describe('downloadDropboxFile', () => {
     });
 
     expect(result.mimeType).toBe('application/pdf');
+  });
+});
+
+describe('createDropboxDocument', () => {
+  const originalFetch = global.fetch;
+  const mockFetch = jest.fn() as unknown as jest.MockedFunction<typeof fetch>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('uploads a document file to Dropbox root', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'id:doc',
+        name: 'Football.md',
+        path_display: '/Football.md',
+      }),
+    } as unknown as Response);
+
+    const result = await createDropboxDocument('token-123', {
+      title: 'Football',
+      content: 'A short note about football.',
+    });
+
+    expect(result.name).toBe('Football.md');
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://content.dropboxapi.com/2/files/upload',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer token-123',
+          'Dropbox-API-Arg': JSON.stringify({
+            path: '/Football.md',
+            mode: 'add',
+            autorename: true,
+          }),
+        }),
+      }),
+    );
   });
 });

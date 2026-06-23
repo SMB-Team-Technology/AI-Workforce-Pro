@@ -67,6 +67,11 @@ describe('applyModelSpecEphemeralAgent', () => {
         google_drive: false,
         google_mail: false,
         google_calendar: false,
+        microsoft_onedrive: false,
+        microsoft_mail: false,
+        microsoft_calendar: false,
+        dropbox: false,
+        clio: false,
         artifacts: 'default',
       });
     });
@@ -92,6 +97,41 @@ describe('applyModelSpecEphemeralAgent', () => {
         google_drive: true,
         google_mail: false,
         google_calendar: true,
+        microsoft_onedrive: false,
+        microsoft_mail: false,
+        microsoft_calendar: false,
+        dropbox: false,
+        clio: false,
+        artifacts: 'default',
+      });
+    });
+
+    it('should apply Microsoft integration flags from the model spec', () => {
+      const modelSpec = createModelSpec({
+        microsoftOneDrive: true,
+        microsoftMail: false,
+        microsoftCalendar: true,
+      });
+
+      applyModelSpecEphemeralAgent({
+        convoId: null,
+        modelSpec,
+        updateEphemeralAgent,
+      });
+
+      expect(updateEphemeralAgent).toHaveBeenCalledWith(Constants.NEW_CONVO, {
+        mcp: ['spec-server1'],
+        execute_code: true,
+        web_search: true,
+        file_search: false,
+        google_drive: false,
+        google_mail: false,
+        google_calendar: false,
+        microsoft_onedrive: true,
+        microsoft_mail: false,
+        microsoft_calendar: true,
+        dropbox: false,
+        clio: false,
         artifacts: 'default',
       });
     });
@@ -248,6 +288,11 @@ describe('applyModelSpecEphemeralAgent', () => {
         google_drive: false,
         google_mail: false,
         google_calendar: false,
+        microsoft_onedrive: false,
+        microsoft_mail: false,
+        microsoft_calendar: false,
+        dropbox: false,
+        clio: false,
         artifacts: 'default',
       });
     });

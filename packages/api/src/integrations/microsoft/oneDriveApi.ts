@@ -19,8 +19,21 @@ export interface OneDriveSearchOptions {
   pageToken?: string;
 }
 
+export interface CreateOneDriveDocumentOptions {
+  title: string;
+  content?: string;
+  folderId?: string;
+}
+
+export interface OneDriveDocumentCreated {
+  id: string;
+  name: string;
+  webUrl?: string;
+}
+
 const GRAPH_URL = 'https://graph.microsoft.com/v1.0';
 const DRIVE_ITEM_SELECT = 'id,name,file,folder,size,lastModifiedDateTime';
+const MAX_DOCUMENT_CONTENT_CHARS = 500_000;
 
 export const ONEDRIVE_NOT_PROVISIONED_ERROR = 'OneDrive not provisioned';
 
@@ -178,4 +191,76 @@ export async function downloadMicrosoftOneDriveFile(
     fileName: file.name,
     mimeType,
   };
+}
+
+function sanitizeDocumentFileName(title: string): string {
+  return title
+    .replace(/[<>:"/\\|?*]/g, '_')
+    .split('')
+    .map((char) => (char.charCodeAt(0) < 32 ? '_' : char))
+    .join('')
+    .trim();
+}
+
+function normalizeDocumentTitle(title: string): string {
+  const trimmed = sanitizeDocumentFileName(title);
+  return trimmed || 'Untitled document';
+}
+
+function normalizeDocumentContent(content: string): string {
+  if (content.length <= MAX_DOCUMENT_CONTENT_CHARS) {
+    return content;
+  }
+  return content.slice(0, MAX_DOCUMENT_CONTENT_CHARS);
+}
+
+function resolveDocumentFileName(title: string): string {
+  const base = normalizeDocumentTitle(title);
+  if (/\.[a-z0-9]+$/i.test(base)) {
+    return base;
+  }
+  return `${base}.md`;
+}
+
+function encodeDrivePath(fileName: string): string {
+  return fileName
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
+function buildDocumentUploadUrl(folderId: string | undefined, fileName: string): string {
+  const encodedName = encodeDrivePath(fileName);
+  if (folderId?.trim()) {
+    return `${GRAPH_URL}/me/drive/items/${encodeURIComponent(folderId.trim())}:/${encodedName}:/content`;
+  }
+  return `${GRAPH_URL}/me/drive/root:/${encodedName}:/content`;
+}
+
+export async function createOneDriveDocument(
+  accessToken: string,
+  options: CreateOneDriveDocumentOptions,
+): Promise<OneDriveDocumentCreated> {
+  const fileName = resolveDocumentFileName(options.title);
+  const content = normalizeDocumentContent(options.content ?? '');
+  const url = buildDocumentUploadUrl(options.folderId, fileName);
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'text/plain',
+    },
+    body: content,
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    if (isOneDriveNotProvisionedGraphError(response.status, errorBody)) {
+      throw new Error(ONEDRIVE_NOT_PROVISIONED_ERROR);
+    }
+    throw new Error(`Microsoft OneDrive create document failed (${response.status}): ${errorBody}`);
+  }
+
+  return (await response.json()) as OneDriveDocumentCreated;
 }

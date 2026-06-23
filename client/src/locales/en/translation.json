@@ -477,6 +477,8 @@
   "com_info_heic_converting": "Converting HEIC image to JPEG...",
   "com_nav_2fa": "Two-Factor Authentication (2FA)",
   "com_nav_account_settings": "Account Settings",
+  "com_nav_organization": "Organization",
+  "com_nav_organization_context": "You are in {{0}}",
   "com_nav_admin_panel": "Admin panel",
   "com_nav_admin_panel_error": "Could not open the admin panel. Please try again.",
   "com_nav_advanced_prompts": "Advanced prompts editor",

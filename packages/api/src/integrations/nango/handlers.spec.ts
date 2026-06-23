@@ -475,4 +475,67 @@ describe('createAdminIntegrationHandlers', () => {
     expect(status).toHaveBeenCalledWith(404);
     expect(json).toHaveBeenCalledWith({ error: 'User not found' });
   });
+
+  it('disconnects an integration for a tenant-scoped user', async () => {
+    const nangoService = createMockNangoService();
+    const userId = mockUser._id?.toString() ?? '';
+    const findUsers = jest.fn().mockResolvedValue([mockUser]);
+    const handlers = createAdminIntegrationHandlers({
+      nangoService,
+      isNangoConfigured: () => true,
+      findUsers,
+    });
+    const { req, res, status, json } = createReqRes({
+      params: { userId, providerKey: 'google-drive' },
+    });
+
+    await handlers.disconnectUserIntegration(req, res);
+
+    expect(findUsers).toHaveBeenCalledWith(
+      { _id: userId, tenantId: 'tenant-a' },
+      'name email tenantId',
+      { limit: 1 },
+    );
+    expect(nangoService.disconnectProvider).toHaveBeenCalledWith(mockUser, 'google-drive');
+    expect(status).toHaveBeenCalledWith(200);
+    expect(json).toHaveBeenCalledWith({ success: true });
+  });
+
+  it('returns 404 when disconnecting a user outside tenant scope', async () => {
+    const handlers = createAdminIntegrationHandlers({
+      nangoService: createMockNangoService(),
+      isNangoConfigured: () => true,
+      findUsers: jest.fn().mockResolvedValue([]),
+    });
+    const { req, res, status, json } = createReqRes({
+      params: {
+        userId: mockUser._id?.toString() ?? '',
+        providerKey: 'google-drive',
+      },
+    });
+
+    await handlers.disconnectUserIntegration(req, res);
+
+    expect(status).toHaveBeenCalledWith(404);
+    expect(json).toHaveBeenCalledWith({ error: 'User not found' });
+  });
+
+  it('returns 400 for an invalid provider key on user disconnect', async () => {
+    const handlers = createAdminIntegrationHandlers({
+      nangoService: createMockNangoService(),
+      isNangoConfigured: () => true,
+      findUsers: jest.fn(),
+    });
+    const { req, res, status, json } = createReqRes({
+      params: {
+        userId: mockUser._id?.toString() ?? '',
+        providerKey: 'invalid-provider',
+      },
+    });
+
+    await handlers.disconnectUserIntegration(req, res);
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ error: 'Invalid integration provider' });
+  });
 });

@@ -71,6 +71,11 @@ export async function loadAddedAgent(
       google_drive?: boolean;
       google_mail?: boolean;
       google_calendar?: boolean;
+      microsoft_onedrive?: boolean;
+      microsoft_mail?: boolean;
+      microsoft_calendar?: boolean;
+      dropbox?: boolean;
+      clio?: boolean;
       artifacts?: unknown;
     };
     [key: string]: unknown;
@@ -127,6 +132,11 @@ export async function loadAddedAgent(
         google_drive?: boolean;
         google_mail?: boolean;
         google_calendar?: boolean;
+        microsoft_onedrive?: boolean;
+        microsoft_mail?: boolean;
+        microsoft_calendar?: boolean;
+        dropbox?: boolean;
+        clio?: boolean;
         artifacts?: unknown;
       }
     | undefined;
@@ -145,6 +155,11 @@ export async function loadAddedAgent(
         googleDrive?: boolean;
         googleMail?: boolean;
         googleCalendar?: boolean;
+        microsoftOneDrive?: boolean;
+        microsoftMail?: boolean;
+        microsoftCalendar?: boolean;
+        dropbox?: boolean;
+        clio?: boolean;
       }>;
     }
   )?.list;
@@ -176,6 +191,21 @@ export async function loadAddedAgent(
   }
   if (ephemeralAgent?.google_calendar === true || modelSpec?.googleCalendar === true) {
     tools.push(Tools.google_calendar);
+  }
+  if (ephemeralAgent?.microsoft_onedrive === true || modelSpec?.microsoftOneDrive === true) {
+    tools.push(Tools.microsoft_onedrive);
+  }
+  if (ephemeralAgent?.microsoft_mail === true || modelSpec?.microsoftMail === true) {
+    tools.push(Tools.microsoft_mail);
+  }
+  if (ephemeralAgent?.microsoft_calendar === true || modelSpec?.microsoftCalendar === true) {
+    tools.push(Tools.microsoft_calendar);
+  }
+  if (ephemeralAgent?.dropbox === true || modelSpec?.dropbox === true) {
+    tools.push(Tools.dropbox);
+  }
+  if (ephemeralAgent?.clio === true || modelSpec?.clio === true) {
+    tools.push(Tools.clio);
   }
 
   const addedServers = new Set<string>();

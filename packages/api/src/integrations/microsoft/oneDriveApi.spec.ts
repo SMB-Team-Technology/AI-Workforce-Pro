@@ -1,4 +1,8 @@
-import { downloadMicrosoftOneDriveFile, searchMicrosoftOneDriveFiles } from './oneDriveApi';
+import {
+  createOneDriveDocument,
+  downloadMicrosoftOneDriveFile,
+  searchMicrosoftOneDriveFiles,
+} from './oneDriveApi';
 
 describe('searchMicrosoftOneDriveFiles', () => {
   const originalFetch = global.fetch;
@@ -150,5 +154,73 @@ describe('downloadMicrosoftOneDriveFile', () => {
     });
 
     expect(result.mimeType).toBe('application/pdf');
+  });
+});
+
+describe('createOneDriveDocument', () => {
+  const originalFetch = global.fetch;
+  const mockFetch = jest.fn() as unknown as jest.MockedFunction<typeof fetch>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    global.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('uploads a document file to OneDrive root', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'doc-1',
+        name: 'Football.md',
+        webUrl: 'https://onedrive.live.com/doc-1',
+      }),
+    } as unknown as Response);
+
+    const result = await createOneDriveDocument('token-123', {
+      title: 'Football',
+      content: 'A short note about football.',
+    });
+
+    expect(result.id).toBe('doc-1');
+    expect(result.name).toBe('Football.md');
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'https://graph.microsoft.com/v1.0/me/drive/root:/Football.md:/content',
+      ),
+      expect.objectContaining({
+        method: 'PUT',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer token-123',
+          'Content-Type': 'text/plain',
+        }),
+        body: 'A short note about football.',
+      }),
+    );
+  });
+
+  it('uploads into a folder when folderId is provided', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'doc-2',
+        name: 'Notes.md',
+        webUrl: 'https://onedrive.live.com/doc-2',
+      }),
+    } as unknown as Response);
+
+    await createOneDriveDocument('token-123', {
+      title: 'Notes',
+      content: 'Body',
+      folderId: 'folder-abc',
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/me/drive/items/folder-abc:/Notes.md:/content'),
+      expect.any(Object),
+    );
   });
 });

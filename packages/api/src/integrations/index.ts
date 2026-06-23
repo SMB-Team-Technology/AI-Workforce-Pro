@@ -46,8 +46,14 @@ export type {
   GoogleDriveSearchOptions,
   GoogleDriveSearchResult,
 } from './googleDrive/driveApi';
-export { downloadDropboxFile, searchDropboxFiles } from './dropbox/dropboxApi';
+export {
+  createDropboxDocument,
+  downloadDropboxFile,
+  searchDropboxFiles,
+} from './dropbox/dropboxApi';
 export type {
+  CreateDropboxDocumentOptions,
+  DropboxDocumentCreated,
   DropboxFileSummary,
   DropboxSearchOptions,
   DropboxSearchResult,
@@ -57,10 +63,13 @@ export type { BoxFileSummary, BoxSearchOptions, BoxSearchResult } from './box/bo
 export { downloadClioDocument, searchClioDocuments } from './clio/clioApi';
 export type { ClioDocumentSummary, ClioSearchOptions, ClioSearchResult } from './clio/clioApi';
 export {
+  createOneDriveDocument,
   downloadMicrosoftOneDriveFile,
   searchMicrosoftOneDriveFiles,
 } from './microsoft/oneDriveApi';
 export type {
+  CreateOneDriveDocumentOptions,
+  OneDriveDocumentCreated,
   OneDriveFileSummary,
   OneDriveSearchOptions,
   OneDriveSearchResult,
