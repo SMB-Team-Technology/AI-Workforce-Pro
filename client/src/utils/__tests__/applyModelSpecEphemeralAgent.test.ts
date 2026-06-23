@@ -64,6 +64,34 @@ describe('applyModelSpecEphemeralAgent', () => {
         execute_code: true,
         web_search: false,
         file_search: true,
+        google_drive: false,
+        google_mail: false,
+        google_calendar: false,
+        artifacts: 'default',
+      });
+    });
+
+    it('should apply Google integration flags from the model spec', () => {
+      const modelSpec = createModelSpec({
+        googleDrive: true,
+        googleMail: false,
+        googleCalendar: true,
+      });
+
+      applyModelSpecEphemeralAgent({
+        convoId: null,
+        modelSpec,
+        updateEphemeralAgent,
+      });
+
+      expect(updateEphemeralAgent).toHaveBeenCalledWith(Constants.NEW_CONVO, {
+        mcp: ['spec-server1'],
+        execute_code: true,
+        web_search: true,
+        file_search: false,
+        google_drive: true,
+        google_mail: false,
+        google_calendar: true,
         artifacts: 'default',
       });
     });
@@ -217,6 +245,9 @@ describe('applyModelSpecEphemeralAgent', () => {
         execute_code: true,
         web_search: false,
         file_search: true,
+        google_drive: false,
+        google_mail: false,
+        google_calendar: false,
         artifacts: 'default',
       });
     });

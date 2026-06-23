@@ -122,6 +122,48 @@ describe('loadAgent', () => {
     }
   });
 
+  test('should include Google integration tools from modelSpec and ephemeralAgent', async () => {
+    const { EPHEMERAL_AGENT_ID } = Constants;
+
+    const mockReq = {
+      user: { id: 'user123' },
+      config: {
+        modelSpecs: {
+          list: [
+            {
+              name: 'assistant',
+              label: 'Assistant',
+              googleDrive: true,
+              googleMail: true,
+              googleCalendar: false,
+            },
+          ],
+        },
+      },
+      body: {
+        ephemeralAgent: {
+          google_calendar: true,
+        },
+      },
+    } as unknown as LoadAgentParams['req'];
+
+    const result = await loadAgent(
+      {
+        req: mockReq,
+        spec: 'assistant',
+        agent_id: EPHEMERAL_AGENT_ID as string,
+        endpoint: 'anthropic',
+        model_parameters: { model: 'claude-sonnet-4-6' } as unknown as AgentModelParameters,
+      },
+      deps,
+    );
+
+    expect(result).toBeDefined();
+    expect(result!.tools).toContain('google_drive');
+    expect(result!.tools).toContain('google_mail');
+    expect(result!.tools).toContain('google_calendar');
+  });
+
   test('should return null for non-existent agent', async () => {
     const mockReq = { user: { id: 'user123' } };
     const result = await loadAgent(

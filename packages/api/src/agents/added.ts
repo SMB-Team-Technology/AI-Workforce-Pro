@@ -68,6 +68,9 @@ export async function loadAddedAgent(
       execute_code?: boolean;
       file_search?: boolean;
       web_search?: boolean;
+      google_drive?: boolean;
+      google_mail?: boolean;
+      google_calendar?: boolean;
       artifacts?: unknown;
     };
     [key: string]: unknown;
@@ -121,6 +124,9 @@ export async function loadAddedAgent(
         execute_code?: boolean;
         file_search?: boolean;
         web_search?: boolean;
+        google_drive?: boolean;
+        google_mail?: boolean;
+        google_calendar?: boolean;
         artifacts?: unknown;
       }
     | undefined;
@@ -136,6 +142,9 @@ export async function loadAddedAgent(
         executeCode?: boolean;
         fileSearch?: boolean;
         webSearch?: boolean;
+        googleDrive?: boolean;
+        googleMail?: boolean;
+        googleCalendar?: boolean;
       }>;
     }
   )?.list;
@@ -158,6 +167,15 @@ export async function loadAddedAgent(
   }
   if (ephemeralAgent?.web_search === true || modelSpec?.webSearch === true) {
     tools.push(Tools.web_search);
+  }
+  if (ephemeralAgent?.google_drive === true || modelSpec?.googleDrive === true) {
+    tools.push(Tools.google_drive);
+  }
+  if (ephemeralAgent?.google_mail === true || modelSpec?.googleMail === true) {
+    tools.push(Tools.google_mail);
+  }
+  if (ephemeralAgent?.google_calendar === true || modelSpec?.googleCalendar === true) {
+    tools.push(Tools.google_calendar);
   }
 
   const addedServers = new Set<string>();

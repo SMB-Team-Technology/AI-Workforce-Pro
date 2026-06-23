@@ -103,6 +103,9 @@ export type TEphemeralAgent = {
   web_search?: boolean;
   file_search?: boolean;
   execute_code?: boolean;
+  google_drive?: boolean;
+  google_mail?: boolean;
+  google_calendar?: boolean;
   artifacts?: string;
   skills?: boolean;
 };

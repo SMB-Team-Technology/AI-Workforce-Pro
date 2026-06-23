@@ -72,6 +72,15 @@ export async function loadEphemeralAgent(
   if (ephemeralAgent?.web_search === true || modelSpec?.webSearch === true) {
     tools.push(Tools.web_search);
   }
+  if (ephemeralAgent?.google_drive === true || modelSpec?.googleDrive === true) {
+    tools.push(Tools.google_drive);
+  }
+  if (ephemeralAgent?.google_mail === true || modelSpec?.googleMail === true) {
+    tools.push(Tools.google_mail);
+  }
+  if (ephemeralAgent?.google_calendar === true || modelSpec?.googleCalendar === true) {
+    tools.push(Tools.google_calendar);
+  }
 
   const addedServers = new Set<string>();
   if (mcpServers.size > 0) {

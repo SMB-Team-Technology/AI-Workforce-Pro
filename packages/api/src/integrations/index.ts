@@ -35,10 +35,13 @@ export { createNangoWebhookHandler } from './nango/webhookHandlers';
 export type { NangoWebhookHandlersDeps } from './nango/webhookHandlers';
 export {
   buildGoogleDriveFullTextQuery,
+  createGoogleDriveDocument,
   downloadGoogleDriveFile,
   searchGoogleDriveFiles,
 } from './googleDrive/driveApi';
 export type {
+  CreateGoogleDriveDocumentOptions,
+  GoogleDriveDocumentCreated,
   GoogleDriveFileSummary,
   GoogleDriveSearchOptions,
   GoogleDriveSearchResult,

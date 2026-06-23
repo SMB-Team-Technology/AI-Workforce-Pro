@@ -227,6 +227,9 @@ export function applyModelSpecEphemeralAgent({
     web_search: modelSpec.webSearch ?? false,
     file_search: modelSpec.fileSearch ?? false,
     execute_code: modelSpec.executeCode ?? false,
+    google_drive: modelSpec.googleDrive ?? false,
+    google_mail: modelSpec.googleMail ?? false,
+    google_calendar: modelSpec.googleCalendar ?? false,
     artifacts: modelSpec.artifacts === true ? 'default' : modelSpec.artifacts || '',
   };
 

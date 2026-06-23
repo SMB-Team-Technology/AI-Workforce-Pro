@@ -354,14 +354,32 @@ export const fileSearchSchema: ExtendedJsonSchema = {
 export const googleDriveSchema: ExtendedJsonSchema = {
   type: 'object',
   properties: {
+    action: {
+      type: 'string',
+      enum: ['search', 'create_document'],
+      description:
+        'Use "search" to list or find files. Use "create_document" to create a new Google Doc from a title and body text.',
+    },
     query: {
       type: 'string',
       description:
-        'Optional search query to find files in the connected Google Drive account. Leave empty to list recently modified files.',
+        'For search: optional query to find files. Leave empty to list recently modified files.',
     },
     page_size: {
       type: 'number',
-      description: 'Maximum number of files to return (1-20). Defaults to 10.',
+      description: 'For search: maximum files to return (1-20). Defaults to 10.',
+    },
+    title: {
+      type: 'string',
+      description: 'For create_document: document title shown in Google Drive.',
+    },
+    content: {
+      type: 'string',
+      description: 'For create_document: plain-text body written into the new Google Doc.',
+    },
+    folder_id: {
+      type: 'string',
+      description: 'For create_document: optional parent folder ID in Drive.',
     },
   },
 };
@@ -475,7 +493,7 @@ export const toolDefinitions: Record<string, ToolRegistryDefinition> = {
   google_drive: {
     name: 'google_drive',
     description:
-      'Search and list files in the connected user Google Drive account. Returns file names, IDs, MIME types, modification times, and web links.',
+      'Search, list, or create files in the connected user Google Drive account. Use create_document to save a new Google Doc from a title and text body. Returns file metadata and web links.',
     schema: googleDriveSchema,
     toolType: 'builtin',
   },

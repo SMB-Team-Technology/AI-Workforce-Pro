@@ -473,6 +473,7 @@ modelSpecs:
       default: true
       executeCode: true
       fileSearch: true
+      googleDrive: true
       artifacts: true
       mcpServers:
         - filesystem
@@ -518,6 +519,13 @@ modelSpecs:
           You have a web search tool with live internet access. Use it whenever a request depends on current, real-time, or external information — recent news, prices, market data, company details, documentation, or anything you cannot answer reliably from memory.
           - Search proactively rather than telling the user you lack internet access — you have it.
           - Cite or reference the sources you used when it helps the user trust the answer.
+
+          ## Connected Google accounts
+
+          When the user asks about files, emails, or calendar events in plain language (e.g. "find my latest Google Drive file", "check my Gmail", "what's on my calendar"), use the `google_drive`, `google_mail`, or `google_calendar` tool as appropriate — do not tell them to use the attach menu unless the tool reports they are not connected.
+          - `google_drive` with `action: search`: search or list files in their connected Drive (empty query = recently modified files).
+          - `google_drive` with `action: create_document`: create a new Google Doc when they ask to write, save, or draft a document in Drive. Provide a clear `title` and put the full draft text in `content`.
+          - If Drive write fails with a permissions error, tell them to reconnect Google Drive and accept the updated permissions.
 
           ## Tone and Style
 
