@@ -59,14 +59,25 @@ function useIntegrationTextAttach({
           duration: 3000,
         });
 
-        const response =
-          type === 'gmail'
-            ? await gmailMutation.mutateAsync(ids)
-            : type === 'calendar'
-              ? await calendarMutation.mutateAsync(ids)
-              : type === 'outlook-mail'
-                ? await outlookMailMutation.mutateAsync(ids)
-                : await outlookCalendarMutation.mutateAsync(ids);
+        let response;
+        switch (type) {
+          case 'gmail':
+            response = await gmailMutation.mutateAsync(ids);
+            break;
+          case 'calendar':
+            response = await calendarMutation.mutateAsync(ids);
+            break;
+          case 'outlook-mail':
+            response = await outlookMailMutation.mutateAsync(ids);
+            break;
+          case 'outlook-calendar':
+            response = await outlookCalendarMutation.mutateAsync(ids);
+            break;
+          default: {
+            const unsupportedType: never = type;
+            throw new Error(`Unsupported attach type: ${unsupportedType}`);
+          }
+        }
 
         const files = integrationAttachedFilesToFiles(response.files);
 
