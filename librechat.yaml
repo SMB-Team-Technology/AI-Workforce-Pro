@@ -486,8 +486,6 @@ modelSpecs:
       mcpServers:
         - filesystem
         - excel
-        - Google_Drive
-        - SMB_Team
       hideBadgeRow: true
       preset:
         endpoint: anthropic
