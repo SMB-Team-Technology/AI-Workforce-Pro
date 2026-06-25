@@ -83,8 +83,23 @@ export {
   listOutlookCalendarEvents,
 } from './microsoft/outlookCalendarApi';
 export type { OutlookCalendarListOptions } from './microsoft/outlookCalendarApi';
-export { getOutlookMailMessageAsText, searchOutlookMailMessages } from './microsoft/outlookMailApi';
-export type { OutlookMailSearchOptions } from './microsoft/outlookMailApi';
+export {
+  createOutlookDraft,
+  getOutlookMailMessageAsText,
+  listOutlookCategories,
+  modifyOutlookMessageCategories,
+  searchOutlookMailMessages,
+  sendOutlookMessage,
+} from './microsoft/outlookMailApi';
+export type {
+  OutlookCategory,
+  OutlookCategoryModification,
+  OutlookCategoryModificationResult,
+  OutlookComposeOptions,
+  OutlookDraftCreated,
+  OutlookMailSearchOptions,
+  OutlookMessageSent,
+} from './microsoft/outlookMailApi';
 export {
   createGmailDraft,
   getGmailMessageAsText,

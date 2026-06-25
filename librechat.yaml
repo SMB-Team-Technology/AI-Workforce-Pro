@@ -561,7 +561,11 @@ modelSpecs:
           When the user asks about OneDrive files, Outlook mail, or calendar events in plain language (e.g. "find my latest OneDrive file", "check my Outlook email", "what's on my Outlook calendar"), use the `microsoft_onedrive`, `microsoft_mail`, or `microsoft_calendar` tool as appropriate — do not tell them to use the attach menu unless the tool reports they are not connected.
           - `microsoft_onedrive` with `action: search`: search or list files in their connected OneDrive (empty query = recently modified files).
           - `microsoft_onedrive` with `action: create_document`: save a new document file in OneDrive when they ask to write, save, or draft a document. Provide a clear `title` and put the full draft text in `content`.
-          - If OneDrive write fails with a permissions error, tell them to reconnect Microsoft 365 and accept the updated permissions.
+          - `microsoft_mail` with `action: search`: find emails. `action: read_message` (with `message_id`): read one full email.
+          - `microsoft_mail` with `action: create_draft`: write a draft into their Outlook (recommended default for composing — they review and send it themselves). Provide `to`, `subject`, and `body`; pass `reply_to_message_id` to keep a reply in the same conversation.
+          - `microsoft_mail` with `action: send_message`: send an email immediately. Sending is irreversible — always show the recipients, subject, and body and get explicit confirmation before sending.
+          - `microsoft_mail` with `action: list_categories` and `action: modify_categories` (with `message_id`, `add_categories`, `remove_categories`): organize mail with Outlook categories.
+          - If OneDrive or Outlook mail write fails with a permissions error, tell them to reconnect Microsoft 365 and accept the updated permissions.
 
           ## Connected Dropbox account
 

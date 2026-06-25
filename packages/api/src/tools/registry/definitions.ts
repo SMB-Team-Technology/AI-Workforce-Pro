@@ -514,13 +514,71 @@ export const microsoftOneDriveSchema: ExtendedJsonSchema = {
 export const microsoftMailSchema: ExtendedJsonSchema = {
   type: 'object',
   properties: {
+    action: {
+      type: 'string',
+      enum: [
+        'search',
+        'read_message',
+        'create_draft',
+        'send_message',
+        'list_categories',
+        'modify_categories',
+      ],
+      description:
+        'Use "search" to find emails (default). "read_message" to read one full email by message_id. "create_draft" to save a draft without sending. "send_message" to send an email immediately. "list_categories" to list available Outlook categories. "modify_categories" to add/remove categories on a message.',
+    },
     query: {
       type: 'string',
-      description: 'Optional search query for Outlook mail. Leave empty to list recent messages.',
+      description:
+        'For search: optional search query for Outlook mail. Leave empty to list recent messages.',
     },
     page_size: {
       type: 'number',
-      description: 'Maximum number of messages to return (1-20). Defaults to 10.',
+      description: 'For search: maximum number of messages to return (1-20). Defaults to 10.',
+    },
+    message_id: {
+      type: 'string',
+      description:
+        'For read_message and modify_categories: the Outlook message ID (from search results).',
+    },
+    to: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'For create_draft/send_message: recipient email addresses.',
+    },
+    cc: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'For create_draft/send_message: optional CC email addresses.',
+    },
+    bcc: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'For create_draft/send_message: optional BCC email addresses.',
+    },
+    subject: {
+      type: 'string',
+      description: 'For create_draft/send_message: the email subject line.',
+    },
+    body: {
+      type: 'string',
+      description: 'For create_draft/send_message: the plain-text email body.',
+    },
+    reply_to_message_id: {
+      type: 'string',
+      description:
+        'For create_draft/send_message: optional message ID to reply to; keeps the email in the same conversation.',
+    },
+    add_categories: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'For modify_categories: category names to add (use list_categories to see available names).',
+    },
+    remove_categories: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'For modify_categories: category names to remove.',
     },
   },
 };
@@ -696,7 +754,7 @@ export const toolDefinitions: Record<string, ToolRegistryDefinition> = {
   microsoft_mail: {
     name: 'microsoft_mail',
     description:
-      'Search and list emails in the connected user Outlook mailbox. Returns subject, sender, date, and snippet.',
+      'Read and manage the connected user Outlook mailbox: search emails, read a full message, create drafts, send messages, and add or remove categories. Sending email is irreversible — confirm recipients and content with the user before using send_message.',
     schema: microsoftMailSchema,
     toolType: 'builtin',
   },
