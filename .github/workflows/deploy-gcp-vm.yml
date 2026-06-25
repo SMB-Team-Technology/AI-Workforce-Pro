@@ -87,3 +87,12 @@ jobs:
           cd ${{ vars.GCP_VM_APP_DIR }}
           docker compose logs --tail=50 api
           exit 1
+
+      - name: Prune stale Docker artifacts
+        if: success() && steps.scope.outputs.type == 'full'
+        run: |
+          echo "==> Pruning dangling images..."
+          docker image prune -f
+          echo "==> Pruning build cache older than 7 days..."
+          docker builder prune -f --filter until=168h
+          docker system df
