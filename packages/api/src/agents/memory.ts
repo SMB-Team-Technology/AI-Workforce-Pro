@@ -148,7 +148,7 @@ export async function mergeMemoryValues({
 
     const content = await run.processStream(inputs, config);
     if (typeof content === 'string' && content.trim()) {
-      logger.debug(`[MemoryMerge] Merged memory for key "${key}"`);
+      logger.info(`[MemoryMerge] Merged memory for key "${key}"`);
       return content.trim();
     }
   } catch (error) {
