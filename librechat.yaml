@@ -451,12 +451,21 @@ endpoints:
       web_search: true
 
   # Native OpenAI — uses OPENAI_API_KEY. The GPT/o-series specs route here.
-  # useResponsesApi (set per-spec) enables OpenAI's hosted web search + url_citation
-  # annotations, which render as the favicon "Web searched" indicator.
+  # web_search enables OpenAI's hosted web search via the Responses API; getLLMConfig
+  # adds the { type: 'web_search' } tool and forces useResponsesApi, which also yields
+  # url_citation annotations (the favicon "Web searched" indicator). Mirrors Anthropic.
+  # Unlike Google, OpenAI's hosted search coexists with the other function tools.
   openAI:
     titleModel: gpt-5.5
+    addParams:
+      web_search: true
 
   # Native Google (Gemini) — uses GOOGLE_KEY. The Gemini specs route here.
+  # NOTE: native grounding (web_search → googleSearch tool) is intentionally OFF.
+  # Google rejects native grounding when other function tools are present (Drive,
+  # Gmail, MCP, etc.), which every Gemini spec enables — it errors with "built-in
+  # Google tools are not supported with external tools." Revisit via a custom
+  # search provider (e.g. Tavily) that coexists with function tools.
   google:
     titleModel: gemini-2.5-flash
 
@@ -524,7 +533,10 @@ modelSpecs:
       <<: &aiw_tools
         executeCode: true
         fileSearch: true
-        webSearch: true
+        # Default OFF so Claude/OpenAI keep their native web search (enabled via
+        # endpoint addParams). Gemini overrides this to true to use the custom
+        # provider, since Gemini's native grounding conflicts with function tools.
+        webSearch: false
         googleDrive: true
         googleMail: true
         googleCalendar: true
@@ -578,9 +590,16 @@ modelSpecs:
 
           ## Web Search
 
-          You have a web search tool with live internet access. Use it whenever a request depends on current, real-time, or external information — recent news, prices, market data, company details, documentation, or anything you cannot answer reliably from memory.
-          - Search proactively rather than telling the user you lack internet access — you have it.
-          - Cite or reference the sources you used when it helps the user trust the answer.
+          You have a `web_search` tool with live internet access. **Always invoke `web_search`** for any query about real-time, current, or external information you cannot answer reliably from memory — including:
+          - Current weather, forecasts, time, sunrise/sunset, or location-specific conditions
+          - Recent news, current events, breaking stories, or anything "today"/"this week"/"right now"
+          - Live prices, market data, stock quotes, exchange rates, sports scores
+          - Recent product launches, company news, software versions, or documentation updates
+          - Election results, public figures' current roles, or anything time-sensitive
+
+          **Critical:** Never refuse a real-time query with phrases like "I cannot provide real-time information," "I don't have current data," or "I cannot access the internet." You DO have `web_search` — use it before declining. If you are unsure whether the answer might be stale, `web_search` first, then answer.
+
+          Cite sources when it helps the user verify the answer.
 
           ## Connected Google accounts
 
@@ -652,6 +671,7 @@ modelSpecs:
         instructions: *aiw_instructions
 
     - <<: *aiw_tools
+      webSearch: true
       name: gemini-2.5-pro
       label: Gemini 2.5 Pro
       description: Google's top-tier model for reasoning, coding, and scientific work.
@@ -665,6 +685,7 @@ modelSpecs:
         instructions: *aiw_instructions
 
     - <<: *aiw_tools
+      webSearch: true
       name: gemini-2.5-flash
       label: Gemini 2.5 Flash
       description: Fast Google model with strong reasoning for quick workflows.
@@ -696,7 +717,7 @@ modelSpecs:
       group: Anthropic
       preset:
         endpoint: anthropic
-        model: claude-haiku-4-5
+        model: claude-haiku-4-5-20251001
         greeting: How can I help you today?
         instructions: *aiw_instructions
 
@@ -799,6 +820,15 @@ modelSpecs:
 #     quality: 0.92  # JPEG quality for compression (0.0-1.0, default: 0.92)
 # # See the Custom Configuration Guide for more information on Assistants Config:
 # # https://www.librechat.ai/docs/configuration/librechat_yaml/object_structure/assistants_endpoint
+
+# Web Search — active config. Powers the custom web_search tool used by Gemini
+# (interactive) and by every model in scheduled/headless runs. Serper returns
+# Google results and also fetches page content, so one key covers search + scrape.
+# Requires SERPER_API_KEY in the environment.
+webSearch:
+  searchProvider: serper
+  serperApiKey: '${SERPER_API_KEY}'
+  scraperProvider: serper
 
 # Web Search Configuration (optional)
 # webSearch:

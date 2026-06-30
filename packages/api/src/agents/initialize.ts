@@ -84,16 +84,32 @@ function resolveAnthropicToolConflicts({
   provider,
   tools,
   toolDefinitions,
+  headless,
 }: {
   provider?: string;
   tools?: unknown[];
   toolDefinitions?: LCTool[];
+  headless?: boolean;
 }): unknown[] | undefined {
   if (provider !== Providers.ANTHROPIC || !tools?.length) {
     return tools;
   }
 
-  if (!hasToolDefinition(toolDefinitions, Tools.web_search)) {
+  const hasNativeWebSearch = tools.some((tool) => getToolName(tool) === Tools.web_search);
+  if (!hasNativeWebSearch) {
+    return tools;
+  }
+
+  const hasCustomWebSearch = hasToolDefinition(toolDefinitions, Tools.web_search);
+
+  /**
+   * Keep Anthropic's native web_search when it is the only search available:
+   * interactive runs with no custom handler rely on it (Anthropic resolves it
+   * server-side). Remove it only when a custom handler exists (avoids a duplicate)
+   * or in headless/scheduled runs, where an unhandled native tool_use yields no
+   * web_search_tool_result block and Anthropic returns a 400.
+   */
+  if (!hasCustomWebSearch && !headless) {
     return tools;
   }
 
@@ -107,9 +123,15 @@ function resolveAnthropicToolConflicts({
   });
 
   if (removed > 0) {
-    logger.debug(
-      `[initializeAgent] Removed ${removed} Anthropic native web_search tool(s); LibreChat web_search is enabled.`,
-    );
+    if (hasCustomWebSearch) {
+      logger.debug(
+        `[initializeAgent] Removed ${removed} Anthropic native web_search tool(s); LibreChat web_search is enabled.`,
+      );
+    } else {
+      logger.debug(
+        `[initializeAgent] Removed ${removed} Anthropic native web_search tool(s); no LibreChat web_search handler registered (prevents unresolvable tool_use calls).`,
+      );
+    }
   }
 
   return resolvedTools;
@@ -889,6 +911,7 @@ export async function initializeAgent(
     provider: agent.provider,
     tools: options.tools,
     toolDefinitions,
+    headless: (req as { fromScheduler?: boolean })?.fromScheduler === true,
   });
   const hasProviderTools = (providerTools?.length ?? 0) > 0;
 
