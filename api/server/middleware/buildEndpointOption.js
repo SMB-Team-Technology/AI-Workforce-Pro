@@ -119,7 +119,9 @@ async function buildEndpointOption(req, res, next) {
 
       providerEndpoint = modelSpec.preset?.endpoint ?? endpoint;
       providerEndpointType =
-        providerEndpoint !== endpoint ? (modelSpec.preset?.endpointType ?? undefined) : endpointType;
+        providerEndpoint !== endpoint
+          ? (modelSpec.preset?.endpointType ?? undefined)
+          : endpointType;
 
       try {
         const result = applyModelSpecPreset({
