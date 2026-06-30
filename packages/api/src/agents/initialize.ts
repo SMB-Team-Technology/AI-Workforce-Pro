@@ -98,7 +98,17 @@ function resolveAnthropicToolConflicts({
     return tools;
   }
 
-  const hasCustomWebSearch = hasToolDefinition(toolDefinitions, Tools.web_search);
+  /**
+   * Only strip Anthropic's native `web_search_20250305` tool when LibreChat's
+   * own `web_search` handler is registered — the two collide, and the custom
+   * handler takes precedence. When no custom handler exists (no search
+   * provider configured), the native tool is the only way Claude can search,
+   * so it must remain. Removing it unconditionally disabled native Anthropic
+   * web search entirely for deployments relying on it.
+   */
+  if (!hasToolDefinition(toolDefinitions, Tools.web_search)) {
+    return tools;
+  }
 
   let removed = 0;
   const resolvedTools = tools.filter((tool) => {
@@ -110,15 +120,9 @@ function resolveAnthropicToolConflicts({
   });
 
   if (removed > 0) {
-    if (hasCustomWebSearch) {
-      logger.debug(
-        `[initializeAgent] Removed ${removed} Anthropic native web_search tool(s); LibreChat web_search is enabled.`,
-      );
-    } else {
-      logger.debug(
-        `[initializeAgent] Removed ${removed} Anthropic native web_search tool(s); no LibreChat web_search handler registered (prevents unresolvable tool_use calls).`,
-      );
-    }
+    logger.debug(
+      `[initializeAgent] Removed ${removed} Anthropic native web_search tool(s); LibreChat web_search is enabled.`,
+    );
   }
 
   return resolvedTools;
